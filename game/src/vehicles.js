@@ -115,6 +115,7 @@ export class Vehicles {
   // Shared arcade physics: accelerate/brake/steer a vehicle along its heading.
   drive(v, dt, throttle, steerInput, handbrake, G) {
     const def = v.def;
+    const top = v.topOverride ?? def.top;
     const maxReverse = 12;
     if (throttle > 0) v.speed += def.accel * throttle * dt;
     else if (throttle < 0) {
@@ -124,7 +125,7 @@ export class Vehicles {
       v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 6 * dt);
     }
     if (handbrake) v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 22 * dt);
-    v.speed = Math.max(-maxReverse, Math.min(def.top, v.speed));
+    v.speed = Math.max(-maxReverse, Math.min(top, v.speed));
     const spd = Math.abs(v.speed);
     const grip = handbrake ? 1.6 : 1;
     const turnRate = (2.4 * grip) / (1 + spd * 0.045);
@@ -159,8 +160,11 @@ export class Vehicles {
       if (d < 4.2 && d > 0.01) {
         const push = (4.2 - d) / 2;
         const px = (dx / d) * push, pz = (dz / d) * push;
-        v.mesh.position.x -= px; v.mesh.position.z -= pz;
-        if (!o.isPlayer) { o.mesh.position.x += px; o.mesh.position.z += pz; }
+        // in shot mode the staged player car is unpushable (cops bounce off
+        // instead of boxing it in) and keeps its speed through rams
+        const anchored = G.shotMode && v.isPlayer;
+        if (!anchored) { v.mesh.position.x -= px; v.mesh.position.z -= pz; }
+        if (!o.isPlayer) { o.mesh.position.x += px * (anchored ? 2 : 1); o.mesh.position.z += pz * (anchored ? 2 : 1); }
         const rel = Math.abs(v.speed - o.speed);
         if (rel > 5) {
           this.damage(v, rel * 0.8, G); this.damage(o, rel * 0.8, G);
@@ -168,7 +172,7 @@ export class Vehicles {
           if (o.isCop && v.isPlayer) G.police.addWanted(1, 'ramming a cop');
           if (v.isCop && o.isPlayer) G.police.addWanted(0);
         }
-        v.speed *= 0.55;
+        if (!anchored) v.speed *= 0.55;
       }
     }
     v.mesh.rotation.y = v.yaw;

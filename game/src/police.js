@@ -109,7 +109,7 @@ export class Police {
       new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.3, depthWrite: false }));
     spot.rotation.x = -Math.PI / 2; g.add(spot);
     this.scene.add(g);
-    this.heli = { mesh: g, rotor, spot, angle: 0 };
+    this.heli = { mesh: g, rotor, spot, cone, angle: 0 };
     this.G.hud?.showToast('AIR-1 helicopter is over you');
   }
 
@@ -156,8 +156,9 @@ export class Police {
       this.cops = [];
     }
     if (this.wanted < 3 && this.roadblocks.length) this.clearRoadblocks();
-    // desired pursuit units by wanted level
-    const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, 6);
+    // desired pursuit units by wanted level (3 max while staging a shot,
+    // so the staged car cannot be boxed in by six rammers)
+    const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, G.shotMode ? 3 : 6);
     this.spawnT -= dt;
     if (this.cops.filter((c) => !c.dead).length < want && this.spawnT <= 0) {
       this.spawnCop();
@@ -197,15 +198,27 @@ export class Police {
         c.speed = 10;
       }
     }
-    // heli circles the player
+    // heli circles the player — in shot mode it hovers behind-above instead,
+    // lower, so it stays in the chase camera's frame
     if (this.heli) {
-      this.heli.angle += dt * 0.35;
-      const hx = p.x + Math.cos(this.heli.angle) * 26;
-      const hz = p.z + Math.sin(this.heli.angle) * 26;
-      this.heli.mesh.position.set(hx, 34, hz);
+      let hx, hz;
+      const heliH = G.shotMode ? 26 : 34;
+      if (G.shotMode) {
+        const pyaw = G.player.vehicle ? G.player.vehicle.yaw : G.player.yaw;
+        const sway = Math.sin(performance.now() / 3000) * 6;
+        hx = p.x - Math.sin(pyaw) * 24 + Math.cos(pyaw) * (8 + sway);
+        hz = p.z - Math.cos(pyaw) * 24 - Math.sin(pyaw) * (8 + sway);
+        this.heli.cone.scale.y = heliH / 34;
+        this.heli.cone.position.y = -heliH / 2;
+      } else {
+        this.heli.angle += dt * 0.35;
+        hx = p.x + Math.cos(this.heli.angle) * 26;
+        hz = p.z + Math.sin(this.heli.angle) * 26;
+      }
+      this.heli.mesh.position.set(hx, heliH, hz);
       this.heli.mesh.lookAt(p.x, 0, p.z);
       this.heli.rotor.rotation.y += dt * 22;
-      this.heli.spot.position.set(p.x - hx, -33.8, p.z - hz);
+      this.heli.spot.position.set(p.x - hx, -heliH + 0.2, p.z - hz);
     }
     // in sight? any cop within 55, or the heli
     this.inSight = this.nearestCopDist() < 55 || !!this.heli;
