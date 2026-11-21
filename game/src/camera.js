@@ -7,7 +7,6 @@ export class CameraRig {
     this.yaw = Math.PI; // behind player looking north
     this.pitch = 0.32;
     this.dist = 8.5;
-    this.distLock = null; // when set, the follow distance stays fixed (shots)
     this.target = new THREE.Vector3();
     this.smoothed = new THREE.Vector3(0, 6, 20);
   }
@@ -24,7 +23,7 @@ export class CameraRig {
   }
 
   update(dt, focus, inCar) {
-    const wantDist = this.distLock ?? (inCar ? 10.5 : 8.0);
+    const wantDist = inCar ? 10.5 : 8.0;
     this.dist += (wantDist - this.dist) * Math.min(1, dt * 3);
     this.target.lerp(focus, Math.min(1, dt * 8));
     const cx = this.target.x + Math.sin(this.yaw) * Math.cos(this.pitch) * this.dist;

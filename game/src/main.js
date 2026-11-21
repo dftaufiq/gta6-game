@@ -338,24 +338,16 @@ function animate() {
 
   const look = input.consumeMouse();
   G.camRig.addLook(look.dx, look.dy);
-  // chase shot: camera rides ahead of the car looking back at the pursuit
-  if (G.shotAuto && G.player.vehicle) {
-    G.camRig.yaw = G.player.vehicle.yaw - 0.36;
-    G.camRig.pitch = 0.3;
-  }
   G.hud.setCrewCooldown(0, cooldowns.plates / COOLDOWN_MAX.plates);
   G.hud.setCrewCooldown(1, cooldowns.fix / COOLDOWN_MAX.fix);
   G.hud.setCrewCooldown(2, cooldowns.eyes / COOLDOWN_MAX.eyes);
 
-  // interaction prompt (suppressed while staging screenshots)
-  if (G.shotMode) G.hud.showPrompt(null);
-  else {
-    const it = nearestInteractable();
-    if (it) G.hud.showPrompt(it.label);
-    else if (!G.player.vehicle && G.player.nearestVehicle(G)) G.hud.showPrompt('E — Steal car');
-    else if (G.player.vehicle) G.hud.showPrompt('E — Exit car');
-    else G.hud.showPrompt(null);
-  }
+  // interaction prompt
+  const it = nearestInteractable();
+  if (it) G.hud.showPrompt(it.label);
+  else if (!G.player.vehicle && G.player.nearestVehicle(G)) G.hud.showPrompt('E — Steal car');
+  else if (G.player.vehicle) G.hud.showPrompt('E — Exit car');
+  else G.hud.showPrompt(null);
 
   // camera + sun follow the player (sun snaps only after 15 units, so the
   // shadow map is not re-rendered every frame while standing still)
