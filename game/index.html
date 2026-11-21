@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLENA BAY — open-world crime at golden hour</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1210; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #fff; }
+  #game, #game canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  .panel { background: rgba(12, 14, 22, 0.78); border: 1px solid rgba(255, 210, 61, 0.25); border-radius: 8px; backdrop-filter: blur(2px); box-shadow: 0 4px 18px rgba(0,0,0,0.45); }
+  /* mission panel */
+  #mission-panel { position: absolute; top: 14px; left: 14px; width: 340px; padding: 10px 12px; border-left: 4px solid #ffd23d; }
+  #mission-title { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; color: #ffd23d; }
+  #mission-stage { display: inline-block; background: #ffd23d; color: #111; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 3px; margin: 4px 0; }
+  #mission-timer { float: right; font-size: 15px; font-weight: 800; color: #fff; }
+  #mission-text { font-size: 14px; line-height: 1.35; }
+  #mission-next { font-size: 12px; color: #9fd8a8; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 5px; }
+  #mission-next b { color: #4fc3f7; }
+  /* police panel */
+  #police-panel { position: absolute; top: 168px; left: 14px; width: 340px; padding: 8px 12px; border-left: 4px solid #5c9ded; display: none; }
+  #police-panel h3 { font-size: 12px; letter-spacing: 1px; color: #8fb7ff; }
+  #police-panel h3 span { float: right; color: #ff8a8a; }
+  #police-units div { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  #police-units i { color: #8fb7ff; font-style: normal; }
+  #police-units b { flex: 1; }
+  #police-units s { text-decoration: none; color: #ffb36b; }
+  #police-units span { color: #ccc; }
+  /* top right */
+  #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
+  #clock { font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px #000; }
+  #money { font-size: 30px; font-weight: 900; color: #7be495; text-shadow: 0 2px 6px #000; line-height: 1.1; }
+  #stars { font-size: 22px; letter-spacing: 3px; color: rgba(255,255,255,0.35); text-shadow: 0 1px 4px #000; }
+  #stars span.on { color: #ffd23d; }
+  #stars.flash { animation: starflash 0.8s ease; }
+  @keyframes starflash { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
+  #wanted-label { font-size: 13px; font-weight: 800; color: #ff5a5a; letter-spacing: 2px; text-shadow: 0 1px 4px #000; min-height: 18px; }
+  #rank { margin-top: 4px; background: rgba(12,14,22,0.78); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 9px; width: 210px; margin-left: auto; }
+  #rank-name { font-size: 13px; font-weight: 800; color: #4fc3f7; }
+  #rank-rp { font-size: 11px; color: #bbb; float: right; }
+  .bar { height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .bar > div { height: 100%; background: #4fc3f7; transition: width 0.2s; }
+  /* weapons + crew (right) */
+  #weapon-slots { position: absolute; top: 210px; right: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .wslot { display: flex; align-items: center; gap: 8px; background: rgba(12,14,22,0.78); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 10px; width: 190px; font-size: 13px; }
+  .wslot.active { border-color: #ffd23d; background: rgba(60,48,8,0.85); }
+  .wkey { background: #ffd23d; color: #111; font-weight: 800; font-size: 11px; border-radius: 3px; padding: 1px 6px; }
+  .wname { flex: 1; font-weight: 700; }
+  .wammo { color: #9fd8a8; font-weight: 700; }
+  #crew-cards { position: absolute; top: 400px; right: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .crew { position: relative; display: flex; gap: 8px; align-items: center; background: rgba(12,14,22,0.78); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; width: 210px; overflow: hidden; }
+  .crew .cd { position: absolute; left: 0; bottom: 0; width: 100%; background: rgba(0,0,0,0.55); height: 0; }
+  .ckey { background: #e05a8a; color: #fff; font-weight: 800; font-size: 12px; border-radius: 4px; padding: 3px 7px; z-index: 1; }
+  .crew b { display: block; font-size: 12px; }
+  .crew i { display: block; font-size: 11px; color: #4fc3f7; font-style: normal; }
+  .crew s { display: block; font-size: 10px; color: #aaa; text-decoration: none; }
+  /* minimap + vitals */
+  #map-wrap { position: absolute; left: 14px; bottom: 14px; width: 220px; }
+  #location { font-size: 15px; font-weight: 800; color: #ffd98a; text-shadow: 0 1px 4px #000; margin-bottom: 5px; font-style: italic; }
+  #minimap { width: 220px; height: 220px; border-radius: 50%; border: 3px solid rgba(255,210,61,0.6); box-shadow: 0 4px 18px rgba(0,0,0,0.5); background: #222; }
+  .vital { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; font-weight: 800; }
+  .vital .bar { flex: 1; margin: 0; }
+  #health-bar { background: #5fd35f; }
+  #armour-bar { background: #5c9ded; }
+  /* speedometer + radio */
+  #speedo { position: absolute; right: 14px; bottom: 14px; text-align: right; }
+  #radio { background: rgba(12,14,22,0.78); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; text-align: left; }
+  #radio-name { font-size: 12px; font-weight: 800; color: #ff8ab0; }
+  #radio-track { font-size: 12px; color: #ddd; }
+  #speed-num { font-size: 64px; font-weight: 900; line-height: 0.95; text-shadow: 0 3px 10px #000; }
+  #speed-unit { font-size: 15px; font-weight: 700; color: #ccc; }
+  #vehicle-name { font-size: 14px; font-weight: 800; color: #4fc3f7; }
+  #vehicle-cond { font-size: 11px; color: #bbb; }
+  #vehicle-cond-bar { background: #5fd35f; }
+  /* dialogue */
+  #dialogue { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); width: 560px; display: none; align-items: center; gap: 12px; background: rgba(12,14,22,0.85); border: 1px solid rgba(255,210,61,0.3); border-radius: 8px; padding: 10px 14px; }
+  #dialogue.show { display: flex; }
+  #dialogue-portrait { width: 56px; height: 56px; border-radius: 6px; border: 2px solid #ffd23d; image-rendering: pixelated; }
+  #dialogue-name { font-size: 13px; font-weight: 800; color: #4fc3f7; }
+  #dialogue-text { font-size: 14px; line-height: 1.4; }
+  /* banner / toast / prompt / crosshair */
+  #banner { position: absolute; left: 50%; top: 26%; transform: translateX(-50%); text-align: center; display: none; text-shadow: 0 3px 12px #000; }
+  #banner.show { display: block; animation: bannerin 0.35s ease; }
+  @keyframes bannerin { from { opacity: 0; transform: translateX(-50%) scale(0.9); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+  #banner-title { font-size: 46px; font-weight: 900; letter-spacing: 2px; color: #ffd23d; }
+  #banner-sub { font-size: 17px; color: #fff; }
+  #toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: rgba(12,14,22,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 7px 16px; font-size: 14px; display: none; }
+  #toast.show { display: block; }
+  #prompt { position: absolute; left: 50%; bottom: 210px; transform: translateX(-50%); background: #ffd23d; color: #111; font-weight: 800; font-size: 14px; border-radius: 6px; padding: 7px 16px; display: none; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  #prompt.show { display: block; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 2px solid rgba(255,255,255,0.9); border-radius: 50%; display: none; box-shadow: 0 0 6px #000; }
+  #damage-flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.55) 100%); opacity: 0; pointer-events: none; z-index: 6; }
+  /* screens */
+  .screen { position: absolute; inset: 0; z-index: 10; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: linear-gradient(180deg, rgba(20,10,30,0.55), rgba(10,6,16,0.88)); }
+  .screen.show { display: flex; }
+  .screen h1 { font-size: 84px; font-weight: 900; letter-spacing: 4px; background: linear-gradient(180deg, #fff3b0, #ff9a3d); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.8)); }
+  .screen h2 { font-size: 20px; font-weight: 400; color: #ffd98a; letter-spacing: 3px; margin: 2px 0 22px; }
+  .screen .tag { font-size: 15px; color: #ddd; max-width: 560px; line-height: 1.5; margin-bottom: 24px; }
+  .btn { pointer-events: auto; cursor: pointer; background: #ffd23d; color: #111; border: none; font-size: 17px; font-weight: 800; padding: 12px 34px; border-radius: 8px; margin: 5px; letter-spacing: 1px; }
+  .btn:hover { background: #ffe066; }
+  .btn.ghost { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
+  .controls { display: grid; grid-template-columns: auto auto; gap: 4px 22px; font-size: 13px; color: #ccc; text-align: left; margin-top: 20px; }
+  .controls b { color: #ffd23d; }
+  .foot { margin-top: 22px; font-size: 12px; color: #999; }
+  #wasted-screen h1, #busted-screen h1 { font-size: 72px; }
+  #wasted-screen h1 { background: linear-gradient(180deg, #ffb0b0, #d92020); -webkit-background-clip: text; background-clip: text; }
+  #busted-screen h1 { background: linear-gradient(180deg, #b0d0ff, #2050d9); -webkit-background-clip: text; background-clip: text; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="mission-panel" class="panel">
+    <div id="mission-title">FREE ROAM</div>
+    <span id="mission-stage">—</span><span id="mission-timer"></span>
+    <div id="mission-text">Go to Mama Luz (M) to start the next job</div>
+    <div id="mission-next"><b>NEXT</b> —</div>
+  </div>
+  <div id="police-panel" class="panel">
+    <h3>▲ SPD RESPONSE <span id="police-count"></span></h3>
+    <div id="police-units"></div>
+  </div>
+  <div id="top-right">
+    <div id="clock">16:40</div>
+    <div id="money">$250</div>
+    <div id="stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+    <div id="wanted-label"></div>
+    <div id="rank"><span id="rank-name">NOBODY</span><span id="rank-rp">0 / 200 RP</span><div class="bar"><div id="rank-bar" style="width:0%"></div></div></div>
+  </div>
+  <div id="weapon-slots"></div>
+  <div id="crew-cards"></div>
+  <div id="map-wrap">
+    <div id="location">Downtown Solena</div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div class="vital">HEALTH <div class="bar"><div id="health-bar" style="width:100%"></div></div><span id="health-num">100</span></div>
+    <div class="vital">ARMOUR <div class="bar"><div id="armour-bar" style="width:0%"></div></div><span id="armour-num">0</span></div>
+  </div>
+  <div id="speedo">
+    <div id="radio"><div id="radio-name">♪ SOL 98.4 — Island Pop</div><div id="radio-track">Golden Hour Drive</div></div>
+    <div><span id="speed-num">0</span> <span id="speed-unit">KM/H</span></div>
+    <div id="vehicle-name">ON FOOT</div>
+    <div id="vehicle-cond">KAI REYES</div>
+    <div class="bar" style="width:180px;margin-left:auto"><div id="vehicle-cond-bar" style="width:100%"></div></div>
+  </div>
+  <div id="dialogue"><img id="dialogue-portrait" alt=""><div><div id="dialogue-name"></div><div id="dialogue-text"></div></div></div>
+  <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+  <div id="toast"></div>
+  <div id="prompt"></div>
+  <div id="crosshair"></div>
+</div>
+<div id="damage-flash"></div>
+
+<div id="start-screen" class="screen show">
+  <h1>SOLENA BAY</h1>
+  <h2>OPEN-WORLD CRIME AT GOLDEN HOUR</h2>
+  <p class="tag">Kai Reyes, small-time driver. Mama Luz, fixer. One sun-soaked city, six story jobs, five stars of SPD heat — and a boat waiting at Pier 9.</p>
+  <div>
+    <button class="btn" id="new-game-btn">▶ NEW GAME</button>
+    <button class="btn ghost" id="continue-btn" style="display:none">↻ CONTINUE</button>
+  </div>
+  <div class="controls">
+    <span><b>W A S D</b> move / drive</span><span><b>MOUSE</b> look &amp; aim · <b>CLICK</b> shoot</span>
+    <span><b>E</b> enter / exit car · use</span><span><b>1–4 / WHEEL</b> weapons · <b>R</b> reload</span>
+    <span><b>SHIFT</b> sprint · <b>SPACE</b> jump / handbrake</span><span><b>Z X C</b> crew powers · <b>N</b> radio · <b>M</b> mute</span>
+    <span><b>ESC</b> pause · save</span><span><b>GOAL</b> 6 missions · races · shops · respect ranks</span>
+  </div>
+  <p class="foot">An original game — Solena Bay, its people and its story are invented for this bounty. No network needed; everything runs from these files.</p>
+</div>
+
+<div id="pause-menu" class="screen">
+  <h1 style="font-size:54px">PAUSED</h1>
+  <h2>SOLENA BAY</h2>
+  <div>
+    <button class="btn" id="resume-btn">▶ RESUME</button>
+    <button class="btn ghost" id="save-quit-btn">💾 SAVE &amp; TITLE</button>
+  </div>
+  <p class="foot">Progress saves automatically after every mission.</p>
+</div>
+
+<div id="wasted-screen" class="screen">
+  <h1>WASTED</h1>
+  <h2>Kai went down — the city keeps moving</h2>
+  <div><button class="btn" id="wasted-respawn-btn">↻ WAKE UP AT THE SAFEHOUSE ($100)</button></div>
+</div>
+
+<div id="busted-screen" class="screen">
+  <h1>BUSTED</h1>
+  <h2>The SPD caught up with you</h2>
+  <div><button class="btn" id="busted-respawn-btn">↻ WALK FREE — BAIL $200</button></div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

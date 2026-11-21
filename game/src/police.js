@@ -104,7 +104,7 @@ export class Police {
     // spotlight cone
     const cone = new THREE.Mesh(new THREE.ConeGeometry(7, 34, 16, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
-    cone.position.y = -17; cone.rotation.x = Math.PI; g.add(cone);
+    cone.position.y = -17; g.add(cone);
     const spot = new THREE.Mesh(new THREE.CircleGeometry(6, 20),
       new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.3, depthWrite: false }));
     spot.rotation.x = -Math.PI / 2; g.add(spot);
@@ -148,6 +148,12 @@ export class Police {
 
   update(dt, G) {
     const p = G.player.pos;
+    // heat off: pursuit stands down, roadblocks clear
+    if (this.wanted === 0 && this.cops.length) {
+      for (const c of this.cops) G.vehicles.remove(c);
+      this.cops = [];
+    }
+    if (this.wanted < 3 && this.roadblocks.length) this.clearRoadblocks();
     // desired pursuit units by wanted level
     const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, 6);
     this.spawnT -= dt;
