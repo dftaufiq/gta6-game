@@ -86,6 +86,7 @@ export function buildCity(scene, seed) {
     new THREE.MeshStandardMaterial({ map: facadeTexture(1000 + i * 37, b, 4 + (i % 4), 4), roughness: 0.9 }));
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: 1 });
   const sidewalkMat = new THREE.MeshStandardMaterial({ map: sidewalkTexture(), roughness: 1 });
+  const buildingMeshes = [];
 
   const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
   const buildings = [];
@@ -109,6 +110,8 @@ export function buildCity(scene, seed) {
         const mesh = new THREE.Mesh(buildingGeo, facadeMats[Math.floor(rng() * facadeMats.length)]);
         mesh.scale.set(w, h, d); mesh.position.set(bx, h / 2, bz);
         mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.userData.kind = 'building';
+        buildingMeshes.push(mesh);
         scene.add(mesh);
         const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.8, d + 0.6), roofMat);
         roof.position.set(bx, h + 0.4, bz); scene.add(roof);
@@ -226,7 +229,7 @@ export function buildCity(scene, seed) {
     downtown: { x: 0, z: 0, label: 'Downtown' },
   };
 
-  return { colliders, roadLines, half, buildings, landmarks, wheel, palmSpots };
+  return { colliders, roadLines, half, buildings, buildingMeshes, landmarks, wheel, palmSpots };
 }
 
 // Circle vs AABB collision resolve: pushes pos out, returns true if hit.
