@@ -2,54 +2,55 @@
 import * as THREE from 'three';
 import { CFG, VEHICLE_TYPES, CAR_COLORS, pick } from './config.js';
 import { clampWorld, collideCircle } from './city.js';
+import { boxPart, cylPart, mergeGeoms } from './merge.js';
 
-function box(w, h, d, color, x, y, z, opts = {}) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.45, metalness: opts.metal ?? 0.35, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 }));
-  m.position.set(x, y, z); m.castShadow = true;
-  return m;
-}
+// One shared vertex-colour material for every car body.
+const CAR_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.35 });
+// Shared police strobe materials (all units flash in sync, driven by time).
+const STROBE_RED = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff2020, emissiveIntensity: 2 });
+const STROBE_BLUE = new THREE.MeshStandardMaterial({ color: 0x2040ff, emissive: 0x2040ff, emissiveIntensity: 2 });
+const LIGHTBAR_GEO = new THREE.BoxGeometry(0.6, 0.24, 0.44);
 
 export function buildCarMesh(type, color) {
   const g = new THREE.Group();
   const isVan = type === 'van', isSuv = type === 'suv', isPolice = type === 'police';
   const bodyH = isVan ? 1.5 : 0.85, bodyY = isVan ? 1.15 : 0.75;
-  const body = box(2.0, bodyH, 4.4, color, 0, bodyY, 0); g.add(body);
-  if (!isVan) {
-    const cabin = box(1.8, 0.7, 2.2, 0x1a2530, 0, bodyY + bodyH / 2 + 0.3, -0.2, { rough: 0.15, metal: 0.6 });
-    g.add(cabin);
-  }
-  // windshield + rear window sheen
-  g.add(box(1.85, 0.06, 0.9, 0x2c4258, 0, bodyY + bodyH / 2 + 0.05, 1.15, { rough: 0.1, metal: 0.7 }));
-  // headlights / taillights
-  g.add(box(0.45, 0.22, 0.1, 0xfff2b0, -0.7, 0.75, 2.22, { emissive: 0xffe9a0, ei: 1.4 }));
-  g.add(box(0.45, 0.22, 0.1, 0xfff2b0, 0.7, 0.75, 2.22, { emissive: 0xffe9a0, ei: 1.4 }));
-  g.add(box(0.45, 0.22, 0.1, 0xff2a2a, -0.7, 0.75, -2.22, { emissive: 0xff2020, ei: 1.2 }));
-  g.add(box(0.45, 0.22, 0.1, 0xff2a2a, 0.7, 0.75, -2.22, { emissive: 0xff2020, ei: 1.2 }));
-  if (isPolice) {
-    g.add(box(2.0, 0.12, 1.4, 0xffffff, 0, bodyY + bodyH / 2 + 0.02, 0.4, { rough: 0.4 }));
-    const lightbar = box(1.5, 0.28, 0.5, 0x222222, 0, bodyY + bodyH / 2 + 0.75, -0.2);
-    g.add(lightbar);
-    const rl = box(0.6, 0.24, 0.44, 0xff2020, -0.4, bodyY + bodyH / 2 + 0.78, -0.2, { emissive: 0xff2020, ei: 2 });
-    const bl = box(0.6, 0.24, 0.44, 0x2040ff, 0.4, bodyY + bodyH / 2 + 0.78, -0.2, { emissive: 0x2040ff, ei: 2 });
-    g.add(rl); g.add(bl);
-    g.userData.lightL = rl; g.userData.lightR = bl;
-  }
-  if (type === 'taxi') {
-    g.add(box(0.9, 0.3, 0.5, 0xf2c230, 0, bodyY + bodyH / 2 + 0.85, -0.2, { emissive: 0xf2c230, ei: 0.8 }));
-  }
-  if (isSuv) g.add(box(1.9, 0.5, 3.4, color, 0, bodyY + bodyH / 2 + 0.45, -0.3));
-  // wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
-  const wheels = [];
+  const glass = 0x1a2530, lampW = 0xfff2b0, lampR = 0xff2a2a, tyre = 0x151515;
+  const parts = [boxPart(0, bodyY, 0, 2.0, bodyH, 4.4, color)];
+  if (!isVan) parts.push(boxPart(0, bodyY + bodyH / 2 + 0.3, -0.2, 1.8, 0.7, 2.2, glass));
+  parts.push(boxPart(0, bodyY + bodyH / 2 + 0.05, 1.15, 1.85, 0.06, 0.9, 0x2c4258));
+  parts.push(boxPart(-0.7, 0.75, 2.22, 0.45, 0.22, 0.1, lampW));
+  parts.push(boxPart(0.7, 0.75, 2.22, 0.45, 0.22, 0.1, lampW));
+  parts.push(boxPart(-0.7, 0.75, -2.22, 0.45, 0.22, 0.1, lampR));
+  parts.push(boxPart(0.7, 0.75, -2.22, 0.45, 0.22, 0.1, lampR));
+  if (isPolice) parts.push(boxPart(0, bodyY + bodyH / 2 + 0.02, 0.4, 2.0, 0.12, 1.4, 0xffffff));
+  if (type === 'taxi') parts.push(boxPart(0, bodyY + bodyH / 2 + 0.85, -0.2, 0.9, 0.3, 0.5, 0xf2c230));
+  if (isSuv) parts.push(boxPart(0, bodyY + bodyH / 2 + 0.45, -0.3, 1.9, 0.5, 3.4, color));
   for (const [wx, wz] of [[-0.95, 1.45], [0.95, 1.45], [-0.95, -1.45], [0.95, -1.45]]) {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.rotation.z = Math.PI / 2; w.position.set(wx, 0.42, wz);
-    g.add(w); wheels.push(w);
+    parts.push(cylPart(wx, 0.42, wz, 0.42, 0.35, tyre, 0, Math.PI / 2));
   }
-  g.userData.wheels = wheels;
+  const body = new THREE.Mesh(mergeGeoms(parts), CAR_MAT);
+  body.castShadow = true;
+  g.add(body);
+  if (isPolice) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.28, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }));
+    bar.position.set(0, bodyY + bodyH / 2 + 0.75, -0.2);
+    g.add(bar);
+    const rl = new THREE.Mesh(LIGHTBAR_GEO, STROBE_RED);
+    rl.position.set(-0.4, bodyY + bodyH / 2 + 0.78, -0.2);
+    const bl = new THREE.Mesh(LIGHTBAR_GEO, STROBE_BLUE);
+    bl.position.set(0.4, bodyY + bodyH / 2 + 0.78, -0.2);
+    g.add(rl); g.add(bl);
+  }
   return g;
+}
+
+// Drive the shared strobe materials from wall-clock time (all units in sync).
+export function updateStrobes() {
+  const on = Math.sin(performance.now() / 70) > 0;
+  STROBE_RED.emissiveIntensity = on ? 3 : 0.2;
+  STROBE_BLUE.emissiveIntensity = on ? 0.2 : 3;
 }
 
 export class Vehicles {
@@ -171,17 +172,7 @@ export class Vehicles {
       }
     }
     v.mesh.rotation.y = v.yaw;
-    // spin wheels
-    const spin = (v.speed * dt) / 0.42;
-    for (const w of v.mesh.userData.wheels) w.rotation.x += spin;
     if (v.smokeMesh) { v.smokeMesh.scale.setScalar(1 + Math.sin(performance.now() / 130) * 0.25); }
-    // police lightbar strobe
-    if (v.isCop) {
-      v.flashT += dt;
-      const on = Math.sin(v.flashT * 14) > 0;
-      const u = v.mesh.userData;
-      if (u.lightL) { u.lightL.material.emissiveIntensity = on ? 3 : 0.2; u.lightR.material.emissiveIntensity = on ? 0.2 : 3; }
-    }
   }
 
   // Traffic AI: drive along roads via waypoints at intersections.
@@ -236,6 +227,7 @@ export class Vehicles {
   }
 
   update(dt, G) {
+    updateStrobes();
     for (const v of [...this.list]) {
       if (v.dead) {
         v.explodeT = (v.explodeT ?? 0) + dt;
@@ -244,15 +236,6 @@ export class Vehicles {
       }
       if (v.isTraffic) this.updateTraffic(v, dt, G);
       else if (v.isCop) { /* police.js drives cops */ }
-      else if (!v.isPlayer) {
-        // parked car: nothing, but keep lightbar off
-      }
-      if (v.isCop) {
-        v.flashT += dt;
-        const on = Math.sin(v.flashT * 14) > 0;
-        const u = v.mesh.userData;
-        if (u.lightL) { u.lightL.material.emissiveIntensity = on ? 3 : 0.2; u.lightR.material.emissiveIntensity = on ? 0.2 : 3; }
-      }
     }
   }
 }

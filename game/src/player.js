@@ -2,24 +2,39 @@
 import * as THREE from 'three';
 import { CFG } from './config.js';
 import { clampWorld, collideCircle } from './city.js';
+import { boxPart, mergeGeoms } from './merge.js';
 
-function limb(w, h, d, color, x, y, z) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
-  m.position.set(x, y, z); m.castShadow = true;
+// One shared vertex-colour material for every person.
+const PERSON_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+
+function limbMesh(w, h, d, color, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), PERSON_MAT);
+  m.position.set(x, y, z);
   return m;
 }
 
+// Upper body (torso, head, hair, arms) merged into one mesh; legs stay
+// separate so they can swing in the walk cycle.
 export function buildPersonMesh(shirt, pants, skin, hair) {
   const g = new THREE.Group();
-  const torso = limb(0.85, 0.95, 0.45, shirt, 0, 1.25, 0); g.add(torso);
-  const head = limb(0.5, 0.5, 0.5, skin, 0, 2.0, 0); g.add(head);
-  const hairM = limb(0.54, 0.22, 0.54, hair, 0, 2.28, 0); g.add(hairM);
-  const legL = limb(0.32, 0.8, 0.36, pants, -0.22, 0.4, 0); g.add(legL);
-  const legR = limb(0.32, 0.8, 0.36, pants, 0.22, 0.4, 0); g.add(legR);
-  const armL = limb(0.24, 0.8, 0.28, shirt, -0.56, 1.25, 0); g.add(armL);
-  const armR = limb(0.24, 0.8, 0.28, shirt, 0.56, 1.25, 0); g.add(armR);
-  g.userData = { legL, legR, armL, armR };
+  const upper = new THREE.Mesh(mergeGeoms([
+    boxPart(0, 1.25, 0, 0.85, 0.95, 0.45, shirt),
+    boxPart(0, 2.0, 0, 0.5, 0.5, 0.5, skin),
+    boxPart(0, 2.28, 0, 0.54, 0.22, 0.54, hair),
+    boxPart(-0.56, 1.25, 0, 0.24, 0.8, 0.28, shirt),
+    boxPart(0.56, 1.25, 0, 0.24, 0.8, 0.28, shirt),
+  ]), PERSON_MAT);
+  upper.castShadow = true;
+  g.add(upper);
+  // legs carry their own colour via a second merged mesh each (cheap: 2 draws)
+  const legGeo = new THREE.BoxGeometry(0.32, 0.8, 0.36);
+  const legMat = new THREE.MeshStandardMaterial({ color: pants, roughness: 0.9 });
+  const legL = new THREE.Mesh(legGeo, legMat);
+  legL.position.set(-0.22, 0.4, 0);
+  const legR = new THREE.Mesh(legGeo, legMat);
+  legR.position.set(0.22, 0.4, 0);
+  g.add(legL); g.add(legR);
+  g.userData = { legL, legR, armL: null, armR: null, upper };
   return g;
 }
 
@@ -107,11 +122,10 @@ export class Player {
     collideCircle(this.pos, 0.7, G.city.colliders);
     clampWorld(this.pos);
     this.mesh.rotation.y = this.yaw;
-    // walk-cycle swing
+    // walk-cycle swing (legs only; arms are merged into the upper body)
     const s = this.speed > 0.1 ? Math.sin(this.walkPhase) * 0.55 : 0;
     const u = this.mesh.userData;
     u.legL.rotation.x = s; u.legR.rotation.x = -s;
-    u.armL.rotation.x = -s * 0.8; u.armR.rotation.x = s * 0.8;
   }
 
   // Nearest enterable vehicle within range, or null.

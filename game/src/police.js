@@ -143,6 +143,8 @@ export class Police {
       rows.push({ name: r.unitName ?? 'TAC', dist: Math.round(r.mesh.position.distanceTo(p)), status: 'ROADBLOCK' });
     }
     if (this.heli) rows.push({ name: 'AIR-1', dist: Math.round(this.heli.mesh.position.distanceTo(p)), status: 'SPOTLIGHT' });
+    // helicopter first so it is never cut by the 5-row slice
+    rows.sort((a, b) => (a.name === 'AIR-1' ? -1 : b.name === 'AIR-1' ? 1 : 0));
     return rows.slice(0, 5);
   }
 

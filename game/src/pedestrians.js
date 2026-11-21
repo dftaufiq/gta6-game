@@ -48,13 +48,15 @@ export class Pedestrians {
 
   scare(x, z) { this.scarePos = { x, z }; this.scareT = 4; }
 
-  hit(p, G) {
+  hit(p, G, byPlayer = true) {
     if (p.state === 'down') return;
     p.state = 'down'; p.downT = 0;
     p.mesh.rotation.x = -Math.PI / 2;
     p.mesh.position.y = 0.4;
-    G.police?.addWanted(1, 'hitting a pedestrian');
-    G.hud?.showToast('Pedestrian down — witnesses called the SPD');
+    if (byPlayer) {
+      G.police?.addWanted(1, 'hitting a pedestrian');
+      G.hud?.showToast('Pedestrian down — witnesses called the SPD');
+    }
   }
 
   update(dt, G) {
@@ -98,12 +100,11 @@ export class Pedestrians {
       const s = Math.sin(p.phase) * 0.5;
       const u = p.mesh.userData;
       u.legL.rotation.x = s; u.legR.rotation.x = -s;
-      u.armL.rotation.x = -s * 0.7; u.armR.rotation.x = s * 0.7;
-      // hit by a moving car?
+      // hit by a moving car? (only the player's car raises the heat)
       for (const v of G.vehicles.list) {
         if (v.dead || Math.abs(v.speed) < 4) continue;
         if (v.mesh.position.distanceTo(pos) < 2.4) {
-          this.hit(p, G);
+          this.hit(p, G, v.isPlayer);
           if (v.isPlayer) G.audio?.thud?.();
           break;
         }

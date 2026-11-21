@@ -59,6 +59,7 @@ export function stageShot(G, shot) {
     G.player.pos.set(L.docks.x - 22, 0, L.docks.z + 2);
     G.player.yaw = Math.PI / 2;
     G.player.weaponIdx = 2; // SMG
+    G.player.armour = 50;
     G.missions.done = 4;
     G.missions.startMission(4);
     // jump straight to the kill stage

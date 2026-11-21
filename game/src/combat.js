@@ -144,9 +144,10 @@ export class Combat {
   damageEnemy(e, dmg, G) {
     if (e.health <= 0) return;
     e.health -= dmg;
-    // hit flash
-    e.mesh.traverse((o) => { if (o.isMesh) o.material.emissive?.setHex?.(0x661111); });
-    setTimeout(() => e.mesh.traverse((o) => { if (o.isMesh) o.material.emissive?.setHex?.(0x000000); }), 90);
+    // knockback jolt (materials are shared, so no per-enemy flash)
+    const p = G.player.pos, pos = e.mesh.position;
+    const dx = pos.x - p.x, dz = pos.z - p.z, d = Math.hypot(dx, dz) || 1;
+    pos.x += (dx / d) * 0.4; pos.z += (dz / d) * 0.4;
     if (e.health <= 0) {
       e.mesh.rotation.x = -Math.PI / 2;
       e.mesh.position.y = 0.4;
@@ -173,7 +174,7 @@ export class Combat {
       else if (d < 8) { pos.x -= (dx / d) * 3 * dt; pos.z -= (dz / d) * 3 * dt; }
       // shoot bursts at the player
       e.shootT -= dt;
-      if (e.shootT <= 0 && d < 45) { e.burst = 3; e.burstT = 0; e.shootT = 1.1 + Math.random() * 0.9; }
+      if (e.shootT <= 0 && d < 45) { e.burst = 3; e.burstT = 0; e.shootT = 1.4 + Math.random() * 0.9; }
       if (e.burst > 0) {
         e.burstT -= dt;
         if (e.burstT <= 0) {
@@ -183,8 +184,8 @@ export class Combat {
           this.addTracer(from, to);
           G.audio?.gunshot('pistol');
           // hit chance falls with distance
-          if (Math.random() < Math.max(0.12, 0.5 - d * 0.008) && !G.player.dead) {
-            G.player.damage(7, G);
+          if (Math.random() < Math.max(0.08, 0.3 - d * 0.01) && !G.player.dead) {
+            G.player.damage(5, G);
             G.hud?.showDamageFlash();
           }
         }

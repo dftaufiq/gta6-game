@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CFG, DISTRICTS, mulberry32, pick, range } from './config.js';
 import { asphaltTexture, facadeTexture, sandTexture, sidewalkTexture, signTexture, skyTexture, waterTexture } from './textures.js';
+import { boxPart, cylPart, mergeGeoms, planePart } from './merge.js';
 
 const FACADE_BASES = ['#d9a066', '#c98a7a', '#a8b8c4', '#e0c48f', '#b08aa0', '#8fb8a0', '#d4b06a', '#9a8fc4'];
 
@@ -51,16 +52,16 @@ export function buildCity(scene, seed) {
   foam.rotation.x = -Math.PI / 2; foam.position.set(CFG.OCEAN_X - 2, 0.08, 0);
   scene.add(foam);
 
-  // --- roads ---
+  // --- roads (merged into one mesh) ---
   const asphalt = new THREE.MeshStandardMaterial({ map: asphaltTexture(), roughness: 0.95 });
-  const roadGeoX = new THREE.PlaneGeometry(CFG.WORLD * 2, CFG.ROAD);
-  const roadGeoZ = new THREE.PlaneGeometry(CFG.ROAD, CFG.WORLD * 2);
+  const roadParts = [];
   for (const r of roadLines) {
-    const rx = new THREE.Mesh(roadGeoX, asphalt);
-    rx.rotation.x = -Math.PI / 2; rx.position.set(0, 0.03, r); rx.receiveShadow = true; scene.add(rx);
-    const rz = new THREE.Mesh(roadGeoZ, asphalt);
-    rz.rotation.x = -Math.PI / 2; rz.position.set(r, 0.03, 0); rz.receiveShadow = true; scene.add(rz);
+    roadParts.push(planePart(0, 0.03, r, CFG.WORLD * 2, CFG.ROAD));
+    roadParts.push(planePart(r, 0.03, 0, CFG.ROAD, CFG.WORLD * 2));
   }
+  const roads = new THREE.Mesh(mergeGeoms(roadParts), asphalt);
+  roads.receiveShadow = true;
+  scene.add(roads);
   // centre dashes, one instanced mesh
   const dashGeo = new THREE.PlaneGeometry(4, 0.6);
   const dashMat = new THREE.MeshBasicMaterial({ color: 0xf2c230 });
@@ -88,18 +89,17 @@ export function buildCity(scene, seed) {
   const sidewalkMat = new THREE.MeshStandardMaterial({ map: sidewalkTexture(), roughness: 1 });
   const buildingMeshes = [];
 
-  const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
   const buildings = [];
+  const facadeParts = facadeMats.map(() => []);
+  const roofParts = [];
+  const walkParts = [];
   // blocks sit between road lines
   for (let bi = 0; bi < CFG.GRID; bi++) {
     for (let bj = 0; bj < CFG.GRID; bj++) {
       const cx = -half + bi * CFG.PITCH + CFG.PITCH / 2;
       const cz = -half + bj * CFG.PITCH + CFG.PITCH / 2;
       const downtown = Math.abs(cx) < 100 && Math.abs(cz) < 100;
-      // sidewalk slab
-      const walk = new THREE.Mesh(new THREE.PlaneGeometry(CFG.BLOCK + 6, CFG.BLOCK + 6), sidewalkMat);
-      walk.rotation.x = -Math.PI / 2; walk.position.set(cx, 0.04, cz); walk.receiveShadow = true;
-      scene.add(walk);
+      walkParts.push(planePart(cx, 0.04, cz, CFG.BLOCK + 6, CFG.BLOCK + 6));
       const n = downtown ? 2 + Math.floor(rng() * 2) : 1 + Math.floor(rng() * 2);
       for (let k = 0; k < n; k++) {
         const w = range(rng, 12, 20), d = range(rng, 12, 20);
@@ -107,19 +107,29 @@ export function buildCity(scene, seed) {
         const ox = (k % 2 === 0 ? -1 : 1) * range(rng, 4, 10);
         const oz = (k < 2 ? -1 : 1) * range(rng, 4, 10);
         const bx = cx + ox, bz = cz + oz;
-        const mesh = new THREE.Mesh(buildingGeo, facadeMats[Math.floor(rng() * facadeMats.length)]);
-        mesh.scale.set(w, h, d); mesh.position.set(bx, h / 2, bz);
-        mesh.castShadow = true; mesh.receiveShadow = true;
-        mesh.userData.kind = 'building';
-        buildingMeshes.push(mesh);
-        scene.add(mesh);
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.8, d + 0.6), roofMat);
-        roof.position.set(bx, h + 0.4, bz); scene.add(roof);
+        const mi = Math.floor(rng() * facadeMats.length);
+        facadeParts[mi].push(boxPart(bx, h / 2, bz, w, h, d));
+        roofParts.push(boxPart(bx, h + 0.4, bz, w + 0.6, 0.8, d + 0.6));
         colliders.push({ x0: bx - w / 2, z0: bz - d / 2, x1: bx + w / 2, z1: bz + d / 2 });
         buildings.push({ x: bx, z: bz, w, d, h });
       }
     }
   }
+  // one merged mesh per facade material (+ roofs + sidewalks as single meshes)
+  for (let i = 0; i < facadeMats.length; i++) {
+    if (!facadeParts[i].length) continue;
+    const mesh = new THREE.Mesh(mergeGeoms(facadeParts[i]), facadeMats[i]);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData.kind = 'building';
+    buildingMeshes.push(mesh);
+    scene.add(mesh);
+  }
+  const roofs = new THREE.Mesh(mergeGeoms(roofParts), roofMat);
+  roofs.castShadow = true;
+  scene.add(roofs);
+  const walks = new THREE.Mesh(mergeGeoms(walkParts), sidewalkMat);
+  walks.receiveShadow = true;
+  scene.add(walks);
 
   // --- palms (instanced trunks + frond cones) ---
   const palmSpots = [];
@@ -174,12 +184,11 @@ export function buildCity(scene, seed) {
   const pierMat = new THREE.MeshStandardMaterial({ color: 0x9a7a55, roughness: 1 });
   const pier = new THREE.Mesh(new THREE.BoxGeometry(70, 1.2, 12), pierMat);
   pier.position.set(CFG.OCEAN_X + 20, 1.4, pierZ); pier.castShadow = true; scene.add(pier);
+  const postParts = [];
   for (let x = CFG.OCEAN_X - 8; x < CFG.OCEAN_X + 55; x += 10) {
-    for (const dz of [-5, 5]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 3, 6), pierMat);
-      post.position.set(x, 0.4, pierZ + dz); scene.add(post);
-    }
+    for (const dz of [-5, 5]) postParts.push(cylPart(x, 0.4, pierZ + dz, 0.5, 3));
   }
+  scene.add(new THREE.Mesh(mergeGeoms(postParts), pierMat));
   // ferris wheel silhouette on the pier (torus + spokes, slowly turns in main loop)
   const wheel = new THREE.Group();
   const rim = new THREE.Mesh(new THREE.TorusGeometry(11, 0.5, 6, 24), new THREE.MeshStandardMaterial({ color: 0xff5a7a, emissive: 0x881133, emissiveIntensity: 0.8 }));
@@ -194,15 +203,17 @@ export function buildCity(scene, seed) {
   // --- docks (south-east): containers + crates, mission 5 site ---
   const containerColors = [0xd94f3d, 0x3d7dd9, 0x5a7d5a, 0xf2c230];
   const dockX0 = 150, dockZ0 = 170;
+  const containerParts = [];
   for (let i = 0; i < 14; i++) {
     const w = 12, h = 4 + (i % 3) * 2.6, d = 5;
     const x = dockX0 + (i % 5) * 14, z = dockZ0 + Math.floor(i / 5) * 9;
-    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshStandardMaterial({ color: containerColors[i % 4], roughness: 0.85 }));
-    box.position.set(x, h / 2, z); box.castShadow = true; box.receiveShadow = true;
-    scene.add(box);
+    containerParts.push(boxPart(x, h / 2, z, w, h, d, containerColors[i % 4]));
     colliders.push({ x0: x - w / 2, z0: z - d / 2, x1: x + w / 2, z1: z + d / 2 });
   }
+  const containers = new THREE.Mesh(mergeGeoms(containerParts),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
+  containers.castShadow = true; containers.receiveShadow = true;
+  scene.add(containers);
 
   // --- landmark signs (canvas textures on building faces) ---
   function addSign(text, sub, bg, fg, x, y, z, ry, w = 14, h = 3.5) {

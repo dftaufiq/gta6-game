@@ -36,7 +36,7 @@ const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerH
 const sun = new THREE.DirectionalLight(0xffd9a0, 2.4);
 sun.position.set(-120, 90, 60);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -90; sun.shadow.camera.right = 90;
 sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
 sun.shadow.camera.far = 400;
@@ -51,7 +51,7 @@ scene.add(warm);
 const G = {
   scene, camera, renderer, rng,
   mode: 'title', timeMin: CFG.CLOCK_START_MIN, radioIdx: 0,
-  eyesOutT: 0, shotAuto: false, frame: 0,
+  eyesOutT: 0, shotAuto: false, frame: 0, steps: 0,
   onWasted: null, onBusted: null, saveGame: null,
 };
 
@@ -236,19 +236,51 @@ function updateTitleCamera(dt) {
 }
 
 // --- main loop ---
+// Fixed-timestep simulation (1/30 s steps, up to 20 per frame) so game time
+// runs at real speed even when the renderer is slow (software WebGL), with
+// one render per animation frame.
 const clock = new THREE.Clock();
+const STEP = 1 / 30;
+let acc = 0;
 let saveT = 0;
+
+function stepGame(dt) {
+  G.steps++;
+  const input = G.input;
+  G.timeMin += dt * CFG.MIN_PER_SEC;
+  // drive or walk
+  const v = G.player.vehicle;
+  if (v) {
+    const ax = G.shotAuto ? { x: 0, y: 1 } : input.axis();
+    G.vehicles.drive(v, dt, ax.y, ax.x, input.down('Space'), G);
+    G.player.update(dt, G); // follows the car
+  } else {
+    G.player.update(dt, G);
+  }
+  G.vehicles.update(dt, G);
+  G.peds.update(dt, G);
+  G.police.update(dt, G);
+  G.combat.update(dt, G);
+  G.missions.update(dt, G);
+  // cooldowns
+  for (const k of Object.keys(cooldowns)) cooldowns[k] = Math.max(0, cooldowns[k] - dt);
+  if (G.eyesOutT > 0) G.eyesOutT -= dt;
+  // autosave
+  saveT += dt;
+  if (saveT > 60) { saveT = 0; saveGame(G); }
+}
+
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = Math.min(clock.getDelta(), 2);
   G.frame++;
   const input = G.input;
 
   if (G.mode === 'title') {
-    updateTitleCamera(dt);
-    G.vehicles.update(dt, G);
-    G.peds.update(dt, G);
-    G.city.wheel.rotation.z -= dt * 0.25;
+    updateTitleCamera(rawDt);
+    G.vehicles.update(rawDt, G);
+    G.peds.update(rawDt, G);
+    G.city.wheel.rotation.z -= rawDt * 0.25;
     renderer.render(scene, camera);
     input.endFrame();
     return;
@@ -259,36 +291,18 @@ function animate() {
     return;
   }
 
-  // --- play ---
-  G.timeMin += dt * CFG.MIN_PER_SEC;
+  // --- play: simulate in fixed steps (cap 2 s / 60 steps per frame so game
+  // time tracks real time even when the renderer is very slow) ---
+  acc += rawDt;
+  let n = 0;
+  while (acc >= STEP && n < 60) { stepGame(STEP); acc -= STEP; n++; }
+  if (n === 60) acc = 0;
+
   const look = input.consumeMouse();
   G.camRig.addLook(look.dx, look.dy);
-
-  // drive or walk
-  const v = G.player.vehicle;
-  if (v) {
-    const ax = G.shotAuto ? { x: 0, y: 1 } : input.axis();
-    const throttle = ax.y;
-    const handbrake = input.down('Space');
-    G.vehicles.drive(v, dt, throttle, ax.x, handbrake, G);
-    G.player.update(dt, G); // follows the car
-    G.audio.setEngine(G.player.speedKmh, true);
-  } else {
-    G.player.update(dt, G);
-    G.audio.setEngine(0, false);
-  }
-  G.vehicles.update(dt, G);
-  G.peds.update(dt, G);
-  G.police.update(dt, G);
-  G.combat.update(dt, G);
-  G.missions.update(dt, G);
-
-  // cooldowns
-  for (const k of Object.keys(cooldowns)) cooldowns[k] = Math.max(0, cooldowns[k] - dt);
   G.hud.setCrewCooldown(0, cooldowns.plates / COOLDOWN_MAX.plates);
   G.hud.setCrewCooldown(1, cooldowns.fix / COOLDOWN_MAX.fix);
   G.hud.setCrewCooldown(2, cooldowns.eyes / COOLDOWN_MAX.eyes);
-  if (G.eyesOutT > 0) G.eyesOutT -= dt;
 
   // interaction prompt
   const it = nearestInteractable();
@@ -297,26 +311,27 @@ function animate() {
   else if (G.player.vehicle) G.hud.showPrompt('E — Exit car');
   else G.hud.showPrompt(null);
 
-  // camera + sun follow the player
+  // camera + sun follow the player (sun snaps only after 15 units, so the
+  // shadow map is not re-rendered every frame while standing still)
   const focus = G.player.pos.clone(); focus.y = G.player.vehicle ? 1.5 : 1.2;
-  G.camRig.update(dt, focus, !!G.player.vehicle);
-  sun.position.set(G.player.pos.x - 120, 90, G.player.pos.z + 60);
-  sun.target.position.copy(G.player.pos);
-  G.city.wheel.rotation.z -= dt * 0.25;
+  G.camRig.update(rawDt, focus, !!G.player.vehicle);
+  if (Math.hypot(G.player.pos.x - sun.target.position.x, G.player.pos.z - sun.target.position.z) > 15) {
+    sun.position.set(G.player.pos.x - 120, 90, G.player.pos.z + 60);
+    sun.target.position.copy(G.player.pos);
+  }
+  G.city.wheel.rotation.z -= rawDt * 0.25;
 
   // audio beds
+  G.audio.setEngine(G.player.vehicle ? G.player.speedKmh : 0, !!G.player.vehicle);
   G.audio.setSiren(G.police.wanted, G.police.nearestCopDist());
 
-  // autosave
-  saveT += dt;
-  if (saveT > 60) { saveT = 0; saveGame(G); }
-
-  G.hud.update(dt, G);
+  G.hud.update(rawDt, G);
   renderer.render(scene, camera);
 
   // test hook: puppeteer smoke test reads this
   window.__solena = {
-    ready: true, mode: G.mode, frame: G.frame,
+    ready: true, mode: G.mode, frame: G.frame, steps: G.steps,
+    keys: [...G.input.keys],
     x: +G.player.pos.x.toFixed(1), z: +G.player.pos.z.toFixed(1),
     speedKmh: Math.round(G.player.speedKmh), wanted: G.police.wanted,
     money: G.player.money, mission: G.missions.active ? G.missions.active.idx : -1,
