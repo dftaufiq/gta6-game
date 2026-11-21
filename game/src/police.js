@@ -197,11 +197,20 @@ export class Police {
         c.speed = 10;
       }
     }
-    // heli circles the player
+    // heli circles the player — in shot mode it hovers behind-above instead,
+    // so it stays in the chase camera's frame
     if (this.heli) {
-      this.heli.angle += dt * 0.35;
-      const hx = p.x + Math.cos(this.heli.angle) * 26;
-      const hz = p.z + Math.sin(this.heli.angle) * 26;
+      let hx, hz;
+      if (G.shotMode) {
+        const pyaw = G.player.vehicle ? G.player.vehicle.yaw : G.player.yaw;
+        const sway = Math.sin(performance.now() / 3000) * 6;
+        hx = p.x - Math.sin(pyaw) * 24 + Math.cos(pyaw) * (8 + sway);
+        hz = p.z - Math.cos(pyaw) * 24 - Math.sin(pyaw) * (8 + sway);
+      } else {
+        this.heli.angle += dt * 0.35;
+        hx = p.x + Math.cos(this.heli.angle) * 26;
+        hz = p.z + Math.sin(this.heli.angle) * 26;
+      }
       this.heli.mesh.position.set(hx, 34, hz);
       this.heli.mesh.lookAt(p.x, 0, p.z);
       this.heli.rotor.rotation.y += dt * 22;

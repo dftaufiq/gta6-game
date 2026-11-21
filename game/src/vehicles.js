@@ -115,6 +115,7 @@ export class Vehicles {
   // Shared arcade physics: accelerate/brake/steer a vehicle along its heading.
   drive(v, dt, throttle, steerInput, handbrake, G) {
     const def = v.def;
+    const top = v.topOverride ?? def.top;
     const maxReverse = 12;
     if (throttle > 0) v.speed += def.accel * throttle * dt;
     else if (throttle < 0) {
@@ -124,7 +125,7 @@ export class Vehicles {
       v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 6 * dt);
     }
     if (handbrake) v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 22 * dt);
-    v.speed = Math.max(-maxReverse, Math.min(def.top, v.speed));
+    v.speed = Math.max(-maxReverse, Math.min(top, v.speed));
     const spd = Math.abs(v.speed);
     const grip = handbrake ? 1.6 : 1;
     const turnRate = (2.4 * grip) / (1 + spd * 0.045);

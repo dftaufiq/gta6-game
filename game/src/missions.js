@@ -63,7 +63,7 @@ export const MISSIONS = [
     title: 'GOLDEN GETAWAY', giver: 'LUZ', reward: 1500, rp: 500,
     brief: 'The whole city is after you. Four stars, one helicopter, and a boat at Pier 9.',
     stages: [
-      { kind: 'escape', x: CFG.OCEAN_X + 20, z: 150, r: 10, text: 'Escape to the boat at Pier 9 — 4 stars on you',
+      { kind: 'escape', x: CFG.OCEAN_X + 20, z: 150, r: 10, text: 'Escape to the boat at Pier 9 — the whole SPD is on you',
         say: { who: 'LUZ', text: 'The boat leaves in minutes, Kai! The whole SPD is coming — drive like your life depends on it. Because it does.' } },
     ],
   },

@@ -167,8 +167,8 @@ export class HUD {
     const v = G.player.vehicle;
     this.el['speed-num'].textContent = Math.round(G.player.speedKmh);
     this.el['vehicle-name'].textContent = v ? v.name.toUpperCase() : 'ON FOOT';
-    this.el['vehicle-cond'].textContent = v ? `${Math.max(0, Math.round(v.health))}% CONDITION` : 'KAI REYES';
-    this.el['vehicle-cond-bar'].style.width = v ? `${Math.max(0, v.health)}%` : '100%';
+    this.el['vehicle-cond'].textContent = v ? `${Math.max(0, Math.min(100, Math.round(v.health)))}% CONDITION` : 'KAI REYES';
+    this.el['vehicle-cond-bar'].style.width = v ? `${Math.max(0, Math.min(100, v.health))}%` : '100%';
     this.el.crosshair.style.display = (!v && G.mode === 'play' && G.player.weaponIdx > 0) ? 'block' : 'none';
     // radio
     this.trackT -= dt;
