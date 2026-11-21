@@ -74,7 +74,7 @@ export function stageShot(G, shot) {
     G.player.pos.set(155, 0, 208);
     G.player.yaw = Math.PI;
     G.player.weaponIdx = 2; // SMG
-    G.player.armour = 100; // staged player must survive the whole shot
+    G.player.armour = 150; // staged player must survive the whole shot
     G.missions.done = 4;
     G.missions.startMission(4);
     // jump straight to the kill stage
