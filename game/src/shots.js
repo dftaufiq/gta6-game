@@ -17,6 +17,7 @@ export function stageShot(G, shot) {
   }
   // gameplay shots: skip the title, go straight into play
   G.mode = 'play';
+  G.shotMode = true; // disables the busted screen (staged player stands still)
   G.hud.hideScreens();
 
   if (shot === 'foot') {
@@ -32,8 +33,13 @@ export function stageShot(G, shot) {
 
   if (shot === 'chase') {
     // COVER: 4-star chase in the Pelo GT, helicopter + 3 cop cars, mission 6 live
+    // clear the route: no parked/traffic cars in the x = 31 corridor
+    for (const o of [...G.vehicles.list]) {
+      if (!o.isCop && Math.abs(o.mesh.position.x - 31) < 12) G.vehicles.remove(o);
+    }
     const car = G.vehicles.spawn('sports', 31, 100, Math.PI, { owned: true });
     car.speed = 30;
+    car.health = 100000; // staged car must survive the whole shot
     G.player.enterVehicle(car, G);
     G.player.money = 86450;
     G.player.respect = 2310;
@@ -59,7 +65,7 @@ export function stageShot(G, shot) {
     G.player.pos.set(L.docks.x - 22, 0, L.docks.z + 2);
     G.player.yaw = Math.PI / 2;
     G.player.weaponIdx = 2; // SMG
-    G.player.armour = 50;
+    G.player.armour = 100; // staged player must survive the whole shot
     G.missions.done = 4;
     G.missions.startMission(4);
     // jump straight to the kill stage

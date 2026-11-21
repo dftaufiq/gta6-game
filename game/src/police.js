@@ -218,8 +218,8 @@ export class Police {
         else G.hud?.showToast(`Heat cooling — ${this.wanted} star${this.wanted > 1 ? 's' : ''} left`);
       }
     } else this.decayT = 0;
-    // busted: on foot, slow, cop close
-    if (this.wanted > 0 && !G.player.vehicle && G.player.speed < 1.5 && this.nearestCopDist() < 5) {
+    // busted: on foot, slow, cop close (not while staging a screenshot)
+    if (!G.shotMode && this.wanted > 0 && !G.player.vehicle && G.player.speed < 1.5 && this.nearestCopDist() < 5) {
       this.bustedT += dt;
       if (this.bustedT > 2.5) { this.bustedT = 0; G.onBusted?.(); }
     } else this.bustedT = 0;

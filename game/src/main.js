@@ -251,7 +251,7 @@ function stepGame(dt) {
   // drive or walk
   const v = G.player.vehicle;
   if (v) {
-    const ax = G.shotAuto ? { x: 0, y: 1 } : input.axis();
+    const ax = G.shotAuto ? shotAutopilot(G) : input.axis();
     G.vehicles.drive(v, dt, ax.y, ax.x, input.down('Space'), G);
     G.player.update(dt, G); // follows the car
   } else {
@@ -268,6 +268,44 @@ function stepGame(dt) {
   // autosave
   saveT += dt;
   if (saveT > 60) { saveT = 0; saveGame(G); }
+}
+
+// Autopilot for the chase screenshot: hold the lane, dodge cars ahead
+// (traffic, roadblocks) by aiming at the clear side, and reverse out
+// if wedged against something.
+function shotAutopilot(G) {
+  const v = G.player.vehicle;
+  if (!v) return { x: 0, y: 1 };
+  const pos = v.mesh.position;
+  const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
+  // unstuck: reversing out of a wedge
+  if (G.autoReverseT > 0) {
+    G.autoReverseT -= 1 / 30;
+    return { x: 0.7, y: -1 };
+  }
+  if (Math.abs(v.speed) < 3) {
+    G.autoStuckT = (G.autoStuckT || 0) + 1 / 30;
+    if (G.autoStuckT > 1.2) { G.autoStuckT = 0; G.autoReverseT = 0.9; return { x: 0.7, y: -1 }; }
+  } else G.autoStuckT = 0;
+  // nearest threat ahead in a 5-wide corridor
+  let threat = null, threatAhead = Infinity;
+  for (const o of G.vehicles.list) {
+    if (o === v || o.dead) continue;
+    const dx = o.mesh.position.x - pos.x, dz = o.mesh.position.z - pos.z;
+    const ahead = dx * fx + dz * fz;
+    const side = dx * fz - dz * fx;
+    if (ahead > 0 && ahead < 24 && Math.abs(side) < 5 && ahead < threatAhead) {
+      threatAhead = ahead; threat = side;
+    }
+  }
+  // aim point: lane centre, or 6.5 units to the clear side when dodging
+  const aimX = threat === null ? 31 : (threat > 0 ? 37.5 : 24.5);
+  const wantYaw = Math.atan2(aimX - pos.x, -30);
+  let dy = wantYaw - v.yaw;
+  while (dy > Math.PI) dy -= Math.PI * 2;
+  while (dy < -Math.PI) dy += Math.PI * 2;
+  const steer = Math.max(-1, Math.min(1, dy * 2.2));
+  return { x: steer, y: 1 };
 }
 
 function animate() {

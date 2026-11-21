@@ -213,20 +213,25 @@ export class Combat {
       if (t.t <= 0) { this.scene.remove(t.line); this.tracers.splice(this.tracers.indexOf(t), 1); }
     }
     this.updateEnemies(dt, G);
-    // auto-fire while mouse held (auto weapons) / click for semi
     const input = G.input;
-    if (G.mode === 'play' && !G.player.vehicle) {
-      const w = this.weapon;
-      if (w.auto ? input.mouseDown : input.mouseClicked) this.shoot();
-    } else if (G.mode === 'play' && G.player.vehicle && input.mouseClicked) {
-      // drive-by: pistol only, from the car window
-      if (this.weapon.id !== 'fists') this.shoot();
-    }
+    // weapon switching + reload BEFORE the shoot check, so a click in the
+    // same frame as a Digit key fires the newly selected weapon
     if (input.hit('KeyR')) this.reload();
-    // weapon switching
     for (let i = 0; i < 4; i++) if (input.hit('Digit' + (i + 1))) G.player.weaponIdx = i;
     if (input.wheel !== 0) {
       G.player.weaponIdx = (G.player.weaponIdx + (input.wheel > 0 ? 1 : 3)) % 4;
+    }
+    // auto-fire while mouse held (auto weapons) / click for semi
+    if (G.mode === 'play' && !G.player.vehicle) {
+      const w = this.weapon;
+      if (w.auto ? input.mouseDown : input.mouseClicked) {
+        this.shoot();
+        input.mouseClicked = false; // one click = one shot (many steps per frame)
+      }
+    } else if (G.mode === 'play' && G.player.vehicle && input.mouseClicked) {
+      // drive-by: pistol only, from the car window
+      if (this.weapon.id !== 'fists') this.shoot();
+      input.mouseClicked = false;
     }
   }
 }
