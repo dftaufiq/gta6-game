@@ -1,20 +1,29 @@
-// SOLENA BAY — HUD: mission + police panels, minimap, speedometer, dialogue,
-// banners, toasts, and the start/pause/wasted/busted screens.
+// SOLENA BAY — HUD: mission + police panels (with stage progress, status
+// pills and dispatch chatter), district standing, minimap, speedometer,
+// dialogue, banners, toasts, and the start/pause/wasted/busted screens.
 import { CHARACTERS, RADIO, WEAPONS, rankFor } from './config.js';
 import { districtAt } from './city.js';
 import { portraitTexture } from './textures.js';
+import { CREW } from './crew.js';
 
 const $ = (id) => document.getElementById(id);
 const TRACKS = ['Golden Hour Drive', 'Palms at Dusk', 'Neon Tide', 'Marina Lights', 'Heatwave Run', 'Coconut Radio'];
+
+const PILL_CLASS = {
+  RAMMING: 'pill-red', FLANKING: 'pill-orange', 'CLOSING IN': 'pill-blue',
+  ROADBLOCK: 'pill-yellow', SPOTLIGHT: 'pill-gold', SWAT: 'pill-purple',
+};
 
 export class HUD {
   constructor(G) {
     this.G = G;
     this.el = {};
     for (const id of ['mission-panel', 'mission-title', 'mission-stage', 'mission-text', 'mission-timer',
-      'mission-next', 'police-panel', 'police-units', 'police-count', 'clock', 'money', 'stars',
+      'mission-next', 'mission-bar', 'police-panel', 'police-units', 'police-count', 'police-chatter',
+      'police-more', 'clock', 'money', 'stars',
       'rank-name', 'rank-bar', 'rank-rp', 'weapon-slots', 'crew-cards', 'minimap', 'health-bar',
-      'health-num', 'armour-bar', 'armour-num', 'location', 'speed-num', 'vehicle-name',
+      'health-num', 'armour-bar', 'armour-num', 'location', 'standing-label', 'standing-bar',
+      'standing-num', 'speed-num', 'vehicle-name',
       'vehicle-cond', 'vehicle-cond-bar', 'radio-name', 'radio-track', 'dialogue', 'dialogue-portrait',
       'dialogue-name', 'dialogue-text', 'banner', 'banner-title', 'banner-sub', 'toast', 'prompt',
       'damage-flash', 'crosshair', 'start-screen', 'pause-menu', 'wasted-screen', 'busted-screen',
@@ -34,12 +43,7 @@ export class HUD {
   }
 
   buildCrewCards() {
-    const crew = [
-      { key: 'Z', name: 'SWAP PLATES', who: 'Tess · Driver', desc: 'Lose 1 wanted star' },
-      { key: 'X', name: 'QUICK FIX', who: 'Bo · Mechanic', desc: 'Repair your car' },
-      { key: 'C', name: 'EYES OUT', who: 'Ivy · Lookout', desc: 'Reveal all cops 20s' },
-    ];
-    this.el['crew-cards'].innerHTML = crew.map((c, i) =>
+    this.el['crew-cards'].innerHTML = CREW.map((c, i) =>
       `<div class="crew" id="crew-${i}"><span class="ckey">${c.key}</span><div><b>${c.name}</b><i>${c.who}</i><s>${c.desc}</s></div><div class="cd" id="crew-cd-${i}"></div></div>`).join('');
   }
 
@@ -135,23 +139,28 @@ export class HUD {
     this.el['rank-name'].textContent = rank.name;
     this.el['rank-rp'].textContent = `${G.player.respect} / ${next} RP`;
     this.el['rank-bar'].style.width = `${Math.min(100, (G.player.respect / next) * 100)}%`;
-    // mission panel
+    // mission panel (+ stage progress bar)
     const mp = G.missions.panel();
     this.el['mission-title'].textContent = mp.title;
     this.el['mission-stage'].textContent = mp.stage;
     this.el['mission-text'].textContent = mp.text;
     this.el['mission-timer'].textContent = mp.timer != null ? `⏱ ${Math.floor(mp.timer / 60)}:${String(mp.timer % 60).padStart(2, '0')}` : '';
     this.el['mission-next'].innerHTML = `<b>NEXT</b> ${mp.next}`;
-    // police panel
+    this.el['mission-bar'].style.width = `${Math.min(100, ((mp.stageNum ?? 0) / Math.max(1, mp.stageTotal ?? 1)) * 100)}%`;
+    // police panel (+ status pills, chatter, overflow line)
     const rows = G.police.unitRows();
     this.el['police-panel'].style.display = w > 0 ? 'block' : 'none';
     if (w > 0) {
-      this.el['police-count'].textContent = `${rows.length} UNIT${rows.length === 1 ? '' : 'S'} · CODE ${w}`;
+      const total = G.police.totalUnits ?? rows.length;
+      this.el['police-count'].textContent = `${total} UNIT${total === 1 ? '' : 'S'} · CODE ${w}`;
       this.el['police-units'].innerHTML = rows.map((r) =>
-        `<div><i>▲</i><b>${r.name}</b><s>${r.status}</s><span>${r.dist} m</span></div>`).join('');
+        `<div><i>▲</i><b>${r.name}</b><s class="${PILL_CLASS[r.status] ?? 'pill-blue'}">${r.status}</s><span>${r.dist} m</span></div>`).join('');
+      this.el['police-chatter'].textContent = G.police.chatter ? `📻 ${G.police.chatter}` : '';
+      const extra = total - rows.length;
+      this.el['police-more'].textContent = extra > 0 ? `+${extra} more unit${extra === 1 ? '' : 's'} · roadblock ahead` : '';
     }
     // weapons
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < WEAPONS.length; i++) {
       const slot = $('wslot-' + i), ammo = $('wammo-' + i);
       slot.classList.toggle('active', i === G.player.weaponIdx);
       const wp = WEAPONS[i];
@@ -160,21 +169,28 @@ export class HUD {
     // health / armour
     this.el['health-bar'].style.width = `${G.player.health}%`;
     this.el['health-num'].textContent = Math.ceil(G.player.health);
-    this.el['armour-bar'].style.width = `${G.player.armour}%`;
+    this.el['armour-bar'].style.width = `${Math.min(100, G.player.armour)}%`;
     this.el['armour-num'].textContent = Math.ceil(G.player.armour);
-    // location + speedo
+    // location + district standing
     this.el.location.textContent = districtAt(G.player.pos.x, G.player.pos.z);
+    const st = G.respect?.current();
+    if (st) {
+      this.el['standing-label'].textContent = `${st.label} · ${st.value}`;
+      this.el['standing-bar'].style.width = `${st.value}%`;
+      this.el['standing-num'].textContent = 'STANDING';
+    }
+    // speedo
     const v = G.player.vehicle;
     this.el['speed-num'].textContent = Math.round(G.player.speedKmh);
     this.el['vehicle-name'].textContent = v ? v.name.toUpperCase() : 'ON FOOT';
-    this.el['vehicle-cond'].textContent = v ? `${Math.max(0, Math.min(100, Math.round(v.health)))}% CONDITION` : 'KAI REYES';
-    this.el['vehicle-cond-bar'].style.width = v ? `${Math.max(0, Math.min(100, v.health))}%` : '100%';
+    this.el['vehicle-cond'].textContent = v ? `${Math.max(0, Math.min(100, Math.round((v.health / (v.maxHealth ?? 100)) * 100)))}% CONDITION` : 'KAI REYES';
+    this.el['vehicle-cond-bar'].style.width = v ? `${Math.max(0, Math.min(100, (v.health / (v.maxHealth ?? 100)) * 100))}%` : '100%';
     this.el.crosshair.style.display = (!v && G.mode === 'play' && G.player.weaponIdx > 0) ? 'block' : 'none';
     // radio
     this.trackT -= dt;
     if (this.trackT <= 0) { this.trackT = 22; this.trackIdx = (this.trackIdx + 1) % TRACKS.length; }
-    const st = RADIO[G.radioIdx];
-    this.el['radio-name'].textContent = `♪ ${st.name} — ${st.genre}`;
+    const st2 = RADIO[G.radioIdx];
+    this.el['radio-name'].textContent = `♪ ${st2.name} — ${st2.genre}`;
     this.el['radio-track'].textContent = TRACKS[this.trackIdx];
     this.drawMinimap(G);
   }
@@ -186,12 +202,13 @@ export class HUD {
     g.beginPath(); g.arc(110, 110, 108, 0, Math.PI * 2); g.clip();
     g.drawImage(this.mapBase, 0, 0);
     const now = performance.now() / 1000;
-    // shops
+    // shops + race starts + bank
     const L = G.city.landmarks;
     const shops = [
       { p: L.safehouse, c: '#ffd23d', t: 'M' }, { p: L.respray, c: '#2f9e4f', t: 'S' },
       { p: L.gunshop, c: '#ba68c8', t: 'G' }, { p: L.raceStart, c: '#ff7a1a', t: 'R' },
-      { p: L.pier, c: '#4fc3f7', t: 'P' },
+      { p: L.race2, c: '#ff7a1a', t: 'R' }, { p: L.race3, c: '#ff7a1a', t: 'R' },
+      { p: L.bank, c: '#ffd23d', t: '$' }, { p: L.pier, c: '#4fc3f7', t: 'P' },
     ];
     g.font = 'bold 11px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const s of shops) {
@@ -211,7 +228,8 @@ export class HUD {
     if (G.police.wanted > 0 || G.eyesOutT > 0) {
       const col = Math.sin(now * 8) > 0 ? '#ff2a2a' : '#2a6bff';
       g.fillStyle = col;
-      for (const c of [...G.police.cops, ...G.police.roadblocks]) {
+      const units = [...G.police.cops, ...G.police.roadblocks, ...(G.police.swat ? [G.police.swat] : [])];
+      for (const c of units) {
         if (c.dead) continue;
         g.beginPath(); g.arc(this.mapX(c.mesh.position.x), this.mapY(c.mesh.position.z), 4, 0, Math.PI * 2); g.fill();
       }

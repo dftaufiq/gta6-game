@@ -1,5 +1,6 @@
 // SOLENA BAY — the city. buildCity lays out the road grid, blocks, buildings,
-// palms, beach, ocean, pier and docks, and returns collision + landmark data.
+// palms, beach umbrellas, ocean, pier and docks, and returns collision +
+// landmark data.
 import * as THREE from 'three';
 import { CFG, DISTRICTS, mulberry32, pick, range } from './config.js';
 import { asphaltTexture, facadeTexture, sandTexture, sidewalkTexture, signTexture, skyTexture, waterTexture } from './textures.js';
@@ -131,15 +132,15 @@ export function buildCity(scene, seed) {
   walks.receiveShadow = true;
   scene.add(walks);
 
-  // --- palms (instanced trunks + frond cones) ---
+  // --- palms (instanced trunks + frond cones) — denser than before ---
   const palmSpots = [];
   for (const r of roadLines) {
-    for (let d = -half + 20; d < half; d += 34) {
-      if (rng() < 0.75) palmSpots.push([r + CFG.ROAD / 2 + 3.5, d + range(rng, -6, 6)]);
-      if (rng() < 0.5) palmSpots.push([d + range(rng, -6, 6), r + CFG.ROAD / 2 + 3.5]);
+    for (let d = -half + 20; d < half; d += 30) {
+      if (rng() < 0.9) palmSpots.push([r + CFG.ROAD / 2 + 3.5, d + range(rng, -6, 6)]);
+      if (rng() < 0.65) palmSpots.push([d + range(rng, -6, 6), r + CFG.ROAD / 2 + 3.5]);
     }
   }
-  for (let i = 0; i < 40; i++) palmSpots.push([range(rng, CFG.BEACH_X + 4, CFG.BEACH_X + 26), range(rng, -half, half)]);
+  for (let i = 0; i < 60; i++) palmSpots.push([range(rng, CFG.BEACH_X + 4, CFG.BEACH_X + 26), range(rng, -half, half)]);
   const trunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 7, 6);
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 });
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, palmSpots.length);
@@ -160,6 +161,31 @@ export function buildCity(scene, seed) {
   }
   trunks.castShadow = true; fronds.castShadow = true;
   scene.add(trunks); scene.add(fronds);
+
+  // --- beach umbrellas (instanced poles + coloured canopies) ---
+  const umbrellaSpots = [];
+  for (let i = 0; i < 16; i++) umbrellaSpots.push([range(rng, CFG.BEACH_X + 6, CFG.BEACH_X + 30), range(rng, -200, 200)]);
+  const uPoleGeo = new THREE.CylinderGeometry(0.09, 0.09, 2.4, 5);
+  const uPoleMat = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.8 });
+  const uPoles = new THREE.InstancedMesh(uPoleGeo, uPoleMat, umbrellaSpots.length);
+  const uTopGeo = new THREE.ConeGeometry(2.4, 1.1, 8);
+  const uTopMats = [0xff5a7a, 0x4fc3f7, 0xf2c230, 0x8bc34a].map((c) =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+  const uTops = uTopMats.map((mat) => new THREE.InstancedMesh(uTopGeo, mat, umbrellaSpots.length));
+  {
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1);
+    const counts = [0, 0, 0, 0];
+    umbrellaSpots.forEach(([x, z], i) => {
+      m.compose(new THREE.Vector3(x, 1.2, z), q, s);
+      uPoles.setMatrixAt(i, m);
+      const mi = i % 4;
+      m.compose(new THREE.Vector3(x, 2.8, z), q, s);
+      uTops[mi].setMatrixAt(counts[mi]++, m);
+    });
+    uTops.forEach((t, i) => { t.count = counts[i]; });
+  }
+  scene.add(uPoles);
+  uTops.forEach((t) => scene.add(t));
 
   // --- streetlights (instanced poles + emissive heads) ---
   const lightSpots = [];
@@ -200,7 +226,7 @@ export function buildCity(scene, seed) {
   wheel.position.set(CFG.OCEAN_X + 30, 15, pierZ);
   scene.add(wheel);
 
-  // --- docks (south-east): containers + crates, mission 5 site ---
+  // --- docks (south-east): containers + crates, mission 5/9 site ---
   const containerColors = [0xd94f3d, 0x3d7dd9, 0x5a7d5a, 0xf2c230];
   const dockX0 = 150, dockZ0 = 170;
   const containerParts = [];
@@ -215,7 +241,7 @@ export function buildCity(scene, seed) {
   containers.castShadow = true; containers.receiveShadow = true;
   scene.add(containers);
 
-  // --- landmark signs (canvas textures on building faces) ---
+  // --- landmark signs (canvas textures on building faces, neon at dusk) ---
   function addSign(text, sub, bg, fg, x, y, z, ry, w = 14, h = 3.5) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
       new THREE.MeshStandardMaterial({ map: signTexture(text, bg, fg, sub), emissive: 0xffffff, emissiveMap: signTexture(text, bg, fg, sub), emissiveIntensity: 0.35 }));
@@ -226,16 +252,25 @@ export function buildCity(scene, seed) {
   addSign('RESPRAY', 'NEW PLATES · $200', '#2f9e4f', '#ffffff', -124, 6, 62, Math.PI / 2);
   addSign('GUNSMITH', 'AMMO · $100', '#5a3a8a', '#ffffff', 124, 6, -124, -Math.PI / 2);
   addSign('PIER 9', 'FERRIS WHEEL', '#ff7a1a', '#ffffff', CFG.OCEAN_X + 8, 8, pierZ - 10, -Math.PI / 2, 18, 4.5);
+  addSign('BANK OF SOLENA', 'VAULT · DOWNTOWN', '#b08a2a', '#ffffff', 31, 9, -25, 0, 16, 4);
+  addSign('NEON PALMS', 'BAR · LIVE MUSIC', '#ff2a7a', '#ffffff', -93, 8, 93, Math.PI / 2, 16, 4);
+  addSign('TACO SOL', 'OPEN LATE', '#ff7a1a', '#ffffff', 93, 7, 93, -Math.PI / 2, 12, 3.5);
+  addSign('MARINA RACE', 'SPRINT START', '#2a7fd9', '#ffffff', 186, 6, -180, Math.PI, 14, 3.5);
+  addSign('HARBOR DASH', 'RACE START', '#2a7fd9', '#ffffff', -186, 6, 180, 0, 14, 3.5);
 
   // Landmark positions the missions + HUD use
   const landmarks = {
     safehouse: { x: -62, z: -124, label: 'Mama Luz — Safehouse' },
     policeStation: { x: 62, z: -62, label: 'Solena PD' },
     respray: { x: -124, z: 62, label: 'Respray Shop' },
+    garage: { x: -124, z: 62, label: 'Bo\u2019s Garage' },
     gunshop: { x: 124, z: -124, label: 'Gunsmith' },
+    bank: { x: 31, z: -31, label: 'Bank of Solena' },
     docks: { x: dockX0 + 20, z: dockZ0 + 8, label: 'Harbor Docks' },
     pier: { x: CFG.OCEAN_X + 20, z: pierZ, label: 'Pier 9' },
     raceStart: { x: -186, z: -186, label: 'Sunset Strip Race' },
+    race2: { x: 186, z: -186, label: 'Marina Sprint' },
+    race3: { x: -186, z: 186, label: 'Harbor Dash' },
     beach: { x: CFG.BEACH_X + 12, z: 0, label: 'Solena Beach' },
     downtown: { x: 0, z: 0, label: 'Downtown' },
   };

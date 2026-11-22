@@ -1,8 +1,25 @@
-// SOLENA BAY — the Solena PD: wanted stars, pursuit AI, roadblocks, helicopter.
+// SOLENA BAY — the Solena PD: wanted stars, pursuit AI, roadblocks with
+// spike strips, the CONDOR-1 helicopter, the SWAT van at 5 stars, and
+// dispatch radio chatter for the response panel.
 import * as THREE from 'three';
 import { CFG, mulberry32 } from './config.js';
 
 const UNIT_NAMES = ['SPD-12', 'SPD-07', 'RAM-03', 'RAM-09', 'TAC-45', 'TAC-21', 'CRU-18', 'CRU-33'];
+const HELI_NAME = 'CONDOR-1';
+const SWAT_NAME = 'SWAT-1';
+
+const CHATTER = [
+  'CONDOR-1: Visual on the target — still moving fast',
+  'RAM-03: Requesting spike strips on the Strip',
+  'DISPATCH: All units, suspect is armed — approach with caution',
+  'TAC-45: Roadblock set — he is coming right at us',
+  'SPD-12: He is heading for the pier, cut him off!',
+  'CONDOR-1: Spotlight on the target, all units converge',
+  'DISPATCH: Air support has the eye — ground units close in',
+  'RAM-09: He rammed me! Requesting backup on Meridian Row',
+  'SWAT-1: Rolling — five stars, full tactical response',
+  'DISPATCH: Suspect vehicle is a Pelo GT, last seen downtown',
+];
 
 export class Police {
   constructor(scene, G) {
@@ -11,6 +28,8 @@ export class Police {
     this.wanted = 0;
     this.cops = []; // vehicle refs
     this.roadblocks = []; // vehicle refs parked across roads
+    this.strips = []; // spike strips: { mesh, x, z, used }
+    this.swat = null; // SWAT van vehicle ref (5 stars)
     this.heli = null;
     this.heliAngle = 0;
     this.decayT = 0;
@@ -19,6 +38,9 @@ export class Police {
     this.roadblockT = 0;
     this.inSight = false;
     this.lastCrimeT = -99;
+    this.chatter = '';
+    this.chatterT = 0;
+    this.chatterIdx = 0;
     this.rng = mulberry32(4242);
   }
 
@@ -32,6 +54,7 @@ export class Police {
     if (this.wanted > before) {
       this.G.hud?.flashWanted(this.wanted);
       this.G.audio?.sirenBlip?.();
+      if (this.wanted === 5) this.G.hud?.showToast('5 STARS — SWAT is rolling, CONDOR-1 is overhead');
     }
     if (this.wanted > 0) this.decayT = 0;
   }
@@ -41,12 +64,16 @@ export class Police {
     for (const c of this.cops) this.G.vehicles.remove(c);
     this.cops = [];
     this.clearRoadblocks();
+    this.removeSwat();
     this.removeHeli();
+    this.chatter = '';
   }
 
   clearRoadblocks() {
     for (const r of this.roadblocks) this.G.vehicles.remove(r);
     this.roadblocks = [];
+    for (const s of this.strips) this.scene.remove(s.mesh);
+    this.strips = [];
   }
 
   spawnCop() {
@@ -70,6 +97,28 @@ export class Police {
     return null;
   }
 
+  // The SWAT van: slow, heavy, 300 HP — it rams like a truck.
+  spawnSwat() {
+    const G = this.G, p = G.player.pos;
+    const lines = G.city.roadLines;
+    const a = this.rng() * Math.PI * 2;
+    let x = p.x + Math.cos(a) * 85, z = p.z + Math.sin(a) * 85;
+    const near = (v) => lines.reduce((b, l) => (Math.abs(l - v) < Math.abs(b - v) ? l : b), lines[0]);
+    if (this.rng() < 0.5) x = near(x); else z = near(z);
+    const van = G.vehicles.spawn('swat', x, z, Math.atan2(p.x - x, p.z - z), { cop: true });
+    van.unitName = SWAT_NAME;
+    van.state = 'chase';
+    van.maxHealth = 300; van.health = 300;
+    this.swat = van;
+    return van;
+  }
+
+  removeSwat() {
+    if (!this.swat) return;
+    this.G.vehicles.remove(this.swat);
+    this.swat = null;
+  }
+
   spawnRoadblock() {
     const G = this.G, p = G.player.pos;
     const heading = G.player.vehicle ? G.player.vehicle.yaw : G.player.yaw;
@@ -86,7 +135,23 @@ export class Police {
       c.unitName = 'TAC-45'; c.state = 'roadblock';
       this.roadblocks.push(c);
     }
-    G.hud?.showToast('SPD roadblock ahead — find another way');
+    // spike strip across the road between the two cars
+    const strip = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.12, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 }));
+    strip.add(base);
+    const spikeGeo = new THREE.ConeGeometry(0.14, 0.5, 5);
+    const spikeMat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, metalness: 0.8, roughness: 0.3 });
+    for (let i = 0; i < 9; i++) {
+      const s = new THREE.Mesh(spikeGeo, spikeMat);
+      s.position.set(-3.4 + i * 0.85, 0.3, 0);
+      strip.add(s);
+    }
+    strip.position.set(rx, 0.08, rz);
+    strip.rotation.y = perp;
+    this.scene.add(strip);
+    this.strips.push({ mesh: strip, x: rx, z: rz, used: false });
+    G.hud?.showToast('SPD roadblock ahead — spike strips on the road');
   }
 
   spawnHeli() {
@@ -110,7 +175,7 @@ export class Police {
     spot.rotation.x = -Math.PI / 2; g.add(spot);
     this.scene.add(g);
     this.heli = { mesh: g, rotor, spot, cone, angle: 0 };
-    this.G.hud?.showToast('AIR-1 helicopter is over you');
+    this.G.hud?.showToast(`${HELI_NAME} air support is over you`);
   }
 
   removeHeli() {
@@ -122,7 +187,7 @@ export class Police {
   nearestCopDist() {
     const p = this.G.player.pos;
     let best = Infinity;
-    for (const c of [...this.cops, ...this.roadblocks]) {
+    for (const c of [...this.cops, ...this.roadblocks, ...(this.swat ? [this.swat] : [])]) {
       if (c.dead) continue;
       best = Math.min(best, c.mesh.position.distanceTo(p));
     }
@@ -133,18 +198,23 @@ export class Police {
   unitRows() {
     const p = this.G.player.pos;
     const rows = [];
+    const statusFor = (d) => (d < 12 ? 'RAMMING' : d < 32 ? 'FLANKING' : 'CLOSING IN');
     for (const c of this.cops) {
       if (c.dead) continue;
       const d = Math.round(c.mesh.position.distanceTo(p));
-      rows.push({ name: c.unitName ?? 'SPD', dist: d, status: d < 12 ? 'RAMMING' : 'PURSUIT' });
+      rows.push({ name: c.unitName ?? 'SPD', dist: d, status: statusFor(d) });
+    }
+    if (this.swat && !this.swat.dead) {
+      rows.push({ name: SWAT_NAME, dist: Math.round(this.swat.mesh.position.distanceTo(p)), status: 'SWAT' });
     }
     for (const r of this.roadblocks) {
       if (r.dead) continue;
       rows.push({ name: r.unitName ?? 'TAC', dist: Math.round(r.mesh.position.distanceTo(p)), status: 'ROADBLOCK' });
     }
-    if (this.heli) rows.push({ name: 'AIR-1', dist: Math.round(this.heli.mesh.position.distanceTo(p)), status: 'SPOTLIGHT' });
+    if (this.heli) rows.push({ name: HELI_NAME, dist: Math.round(this.heli.mesh.position.distanceTo(p)), status: 'SPOTLIGHT' });
     // helicopter first so it is never cut by the 5-row slice
-    rows.sort((a, b) => (a.name === 'AIR-1' ? -1 : b.name === 'AIR-1' ? 1 : 0));
+    rows.sort((a, b) => (a.name === HELI_NAME ? -1 : b.name === HELI_NAME ? 1 : 0));
+    this.totalUnits = rows.length;
     return rows.slice(0, 5);
   }
 
@@ -156,6 +226,7 @@ export class Police {
       this.cops = [];
     }
     if (this.wanted < 3 && this.roadblocks.length) this.clearRoadblocks();
+    if (this.wanted < 5 && this.swat) this.removeSwat();
     // desired pursuit units by wanted level (3 max while staging a shot,
     // so the staged car cannot be boxed in by six rammers)
     const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, G.shotMode ? 3 : 6);
@@ -164,6 +235,8 @@ export class Police {
       this.spawnCop();
       this.spawnT = 1.2;
     }
+    // SWAT van at 5 stars
+    if (this.wanted >= 5 && !this.swat) this.spawnSwat();
     // roadblocks at 3+
     if (this.wanted >= 3) {
       this.roadblockT -= dt;
@@ -176,9 +249,39 @@ export class Police {
     if (this.wanted >= 4 && !this.heli) this.spawnHeli();
     if (this.wanted < 4 && this.heli) this.removeHeli();
 
-    // drive the pursuit
-    for (const c of [...this.cops]) {
-      if (c.dead) { this.cops.splice(this.cops.indexOf(c), 1); continue; }
+    // dispatch radio chatter while wanted
+    if (this.wanted > 0) {
+      this.chatterT -= dt;
+      if (this.chatterT <= 0) {
+        this.chatter = CHATTER[this.chatterIdx % CHATTER.length];
+        this.chatterIdx++;
+        this.chatterT = 7;
+      }
+    }
+
+    // spike strips shred tyres
+    if (G.player.vehicle) {
+      for (const s of this.strips) {
+        if (s.used) continue;
+        const v = G.player.vehicle;
+        if (Math.hypot(v.mesh.position.x - s.x, v.mesh.position.z - s.z) < 3.5 && Math.abs(v.speed) > 6) {
+          s.used = true;
+          v.speed *= 0.35;
+          G.vehicles.damage(v, 20, G);
+          G.hud?.showToast('Spike strip — tyres shredded!');
+          G.audio?.crash(12);
+        }
+      }
+    }
+
+    // drive the pursuit (cops + SWAT van)
+    const pursuers = [...this.cops, ...(this.swat ? [this.swat] : [])];
+    for (const c of pursuers) {
+      if (c.dead) {
+        if (c === this.swat) this.swat = null;
+        else this.cops.splice(this.cops.indexOf(c), 1);
+        continue;
+      }
       const dx = p.x - c.mesh.position.x, dz = p.z - c.mesh.position.z;
       const dist = Math.hypot(dx, dz);
       const wantYaw = Math.atan2(dx, dz);
@@ -227,7 +330,7 @@ export class Police {
       this.decayT += dt;
       if (this.decayT >= CFG.WANTED_DECAY_TIME) {
         this.wanted--; this.decayT = 0;
-        if (this.wanted === 0) { this.clearRoadblocks(); this.removeHeli(); G.hud?.showToast('You lost them — heat is off'); }
+        if (this.wanted === 0) { this.clearRoadblocks(); this.removeSwat(); this.removeHeli(); G.hud?.showToast('You lost them — heat is off'); }
         else G.hud?.showToast(`Heat cooling — ${this.wanted} star${this.wanted > 1 ? 's' : ''} left`);
       }
     } else this.decayT = 0;

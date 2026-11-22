@@ -1,8 +1,12 @@
-// SOLENA BAY — combat: 4 weapons, shooting, muzzle flash, tracers, enemy AI.
+// SOLENA BAY — combat: 5 weapons, shooting, muzzle flash, tracers, hit
+// sparks, enemy AI. Hits throw blood-free orange sparks, never gore.
 import * as THREE from 'three';
 import { WEAPONS } from './config.js';
 import { buildPersonMesh } from './player.js';
 import { glowTexture } from './textures.js';
+
+const SPARK_GEO = new THREE.SphereGeometry(0.09, 5, 4);
+const SPARK_MAT = new THREE.MeshBasicMaterial({ color: 0xffc860 });
 
 export class Combat {
   constructor(scene, G) {
@@ -14,6 +18,7 @@ export class Combat {
     this.reloadT = 0;
     this.enemies = [];
     this.tracers = [];
+    this.sparks = [];
     this.flashLight = new THREE.PointLight(0xffcc66, 0, 18, 1.5);
     scene.add(this.flashLight);
     this.flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -48,6 +53,24 @@ export class Combat {
     for (const v of G.vehicles.list) if (!v.dead) out.push(v.mesh);
     for (const b of G.city.buildingMeshes) out.push(b);
     return out;
+  }
+
+  // Blood-free hit sparks: a burst of small orange embers with gravity.
+  spawnSparks(point, n = 5) {
+    for (let i = 0; i < n; i++) {
+      if (this.sparks.length > 40) {
+        const old = this.sparks.shift();
+        this.scene.remove(old.mesh);
+      }
+      const mesh = new THREE.Mesh(SPARK_GEO, SPARK_MAT);
+      mesh.position.copy(point);
+      this.scene.add(mesh);
+      this.sparks.push({
+        mesh,
+        vel: new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 5 + 1, (Math.random() - 0.5) * 6),
+        t: 0.35 + Math.random() * 0.15,
+      });
+    }
   }
 
   shoot() {
@@ -91,6 +114,7 @@ export class Combat {
     if (hits.length) {
       const h = hits[0];
       end = h.point;
+      this.spawnSparks(h.point, 4);
       let obj = h.object;
       while (obj && !obj.userData.kind) obj = obj.parent;
       if (obj) {
@@ -118,7 +142,10 @@ export class Combat {
     for (const e of this.enemies) {
       if (e.health <= 0) continue;
       const dx = e.mesh.position.x - p.x, dz = e.mesh.position.z - p.z;
-      if (Math.hypot(dx, dz) < w.range && dx * fx + dz * fz > 0) this.damageEnemy(e, w.dmg, G);
+      if (Math.hypot(dx, dz) < w.range && dx * fx + dz * fz > 0) {
+        this.damageEnemy(e, w.dmg, G);
+        this.spawnSparks(e.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0)), 3);
+      }
     }
     for (const ped of G.peds.list) {
       if (ped.state === 'down') continue;
@@ -212,15 +239,24 @@ export class Combat {
       t.t -= dt;
       if (t.t <= 0) { this.scene.remove(t.line); this.tracers.splice(this.tracers.indexOf(t), 1); }
     }
+    for (const s of [...this.sparks]) {
+      s.t -= dt;
+      if (s.t <= 0) { this.scene.remove(s.mesh); this.sparks.splice(this.sparks.indexOf(s), 1); continue; }
+      s.vel.y -= 14 * dt;
+      s.mesh.position.addScaledVector(s.vel, dt);
+      s.mesh.scale.setScalar(Math.max(0.2, s.t * 2.5));
+    }
     this.updateEnemies(dt, G);
     const input = G.input;
     // weapon switching + reload BEFORE the shoot check, so a click in the
     // same frame as a Digit key fires the newly selected weapon
     if (input.hit('KeyR')) this.reload();
-    for (let i = 0; i < 4; i++) if (input.hit('Digit' + (i + 1))) G.player.weaponIdx = i;
+    for (let i = 0; i < WEAPONS.length; i++) if (input.hit('Digit' + (i + 1))) G.player.weaponIdx = i;
     if (input.wheel !== 0) {
-      G.player.weaponIdx = (G.player.weaponIdx + (input.wheel > 0 ? 1 : 3)) % 4;
+      G.player.weaponIdx = (G.player.weaponIdx + (input.wheel > 0 ? 1 : WEAPONS.length - 1)) % WEAPONS.length;
     }
+    // no shooting while the weapon wheel is open
+    if (G.wheel?.open) return;
     // auto-fire while mouse held (auto weapons) / click for semi
     if (G.mode === 'play' && !G.player.vehicle) {
       const w = this.weapon;

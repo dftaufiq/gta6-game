@@ -1,7 +1,8 @@
 // SOLENA BAY — bootstrap + game loop. Builds the world, runs the state machine
-// (title / play / pause / wasted / busted), wires interactions and crew powers.
+// (title / play / pause / wasted / busted), wires interactions, crew powers,
+// races, the garage, the weapon wheel and respect.
 import * as THREE from 'three';
-import { CFG, RADIO, mulberry32, pick } from './config.js';
+import { CFG, RADIO, WEAPONS, mulberry32, pick } from './config.js';
 import { buildCity } from './city.js';
 import { Input } from './input.js';
 import { CameraRig } from './camera.js';
@@ -10,7 +11,12 @@ import { Vehicles } from './vehicles.js';
 import { Pedestrians } from './pedestrians.js';
 import { Police } from './police.js';
 import { Combat } from './combat.js';
-import { Missions } from './missions.js';
+import { Missions, MISSIONS } from './missions.js';
+import { Crew } from './crew.js';
+import { Races, RACE_ROUTES } from './races.js';
+import { Garage } from './garage.js';
+import { Respect } from './respect.js';
+import { WeaponWheel } from './weaponwheel.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { applySave, loadGame, saveGame } from './save.js';
@@ -64,6 +70,11 @@ G.peds = new Pedestrians(scene, G.city, rng);
 G.police = new Police(scene, G);
 G.combat = new Combat(scene, G);
 G.missions = new Missions(scene, G);
+G.crew = new Crew(G);
+G.races = new Races(G);
+G.respect = new Respect(G);
+G.garage = new Garage(G);
+G.wheel = new WeaponWheel(G);
 G.audio = new AudioEngine();
 G.hud = new HUD(G);
 G.saveGame = () => saveGame(G);
@@ -84,10 +95,6 @@ for (let i = 0; i < 12; i++) {
 }
 G.peds.populate(26);
 
-// crew ability cooldowns (seconds remaining)
-const cooldowns = { plates: 0, fix: 0, eyes: 0 };
-const COOLDOWN_MAX = { plates: 45, fix: 60, eyes: 40 };
-
 // --- screens / menus ---
 const saved = loadGame();
 if (saved) G.hud.el['continue-btn'].style.display = 'block';
@@ -98,7 +105,7 @@ function startGame(fresh) {
   G.mode = 'play';
   G.hud.hideScreens();
   G.audio.ensure();
-  if (G.missions.done < 6) {
+  if (G.missions.done < MISSIONS.length) {
     G.hud.showDialogue('LUZ', fresh
       ? 'Kai! You are late. Come to the house — I have work for you. Follow the yellow M on your map.'
       : 'Back again, Kai. The city missed you. Work is waiting at the house.', 7);
@@ -144,77 +151,63 @@ G.onBusted = () => {
 function nearestInteractable() {
   const p = G.player.pos, L = G.city.landmarks;
   const near = (pt, r) => Math.hypot(p.x - pt.x, p.z - pt.z) < r;
-  if (!G.missions.active && G.missions.done < 6 && near(L.safehouse, 12) && !G.player.vehicle) {
-    return { label: `E — Start mission: ${MISSIONS_TITLE()}`, act: () => G.missions.startMission(G.missions.done) };
+  if (!G.missions.active && G.missions.done < MISSIONS.length && near(L.safehouse, 12) && !G.player.vehicle) {
+    const lock = G.missions.lockFor(G.missions.done);
+    if (lock) {
+      return {
+        label: `🔒 ${MISSIONS[G.missions.done].title} — needs ${lock.rank} rank (${lock.rp} RP)`,
+        act: () => G.hud.showToast(`${MISSIONS[G.missions.done].title} needs ${lock.rank} rank (${lock.rp} RP) — earn respect first`),
+      };
+    }
+    return { label: `E — Start mission: ${MISSIONS[G.missions.done].title}`, act: () => G.missions.startMission(G.missions.done) };
   }
-  if (near(L.respray, 12) && G.player.vehicle) {
-    return { label: `E — Respray: clear wanted + repair ($${CFG.RESPRAY_COST})`, act: () => {
-      if (G.player.money < CFG.RESPRAY_COST) { G.hud.showToast('Not enough cash for a respray'); return; }
-      G.player.money -= CFG.RESPRAY_COST;
-      G.police.clearWanted();
-      G.player.vehicle.health = 100;
-      G.hud.showToast('Fresh paint, fresh plates — the SPD lost you');
-      G.audio?.jingle();
-    } };
+  if (near(L.garage, 12) && G.player.vehicle) {
+    return { label: 'E — Garage: upgrades & respray', act: () => G.garage.toggle() };
   }
   if (near(L.gunshop, 12) && !G.player.vehicle) {
     return { label: `E — Gunsmith: refill all ammo ($${CFG.AMMO_COST})`, act: () => {
       if (G.player.money < CFG.AMMO_COST) { G.hud.showToast('Not enough cash for ammo'); return; }
       G.player.money -= CFG.AMMO_COST;
-      for (const k of Object.keys(G.player.ammo)) {
-        G.player.ammo[k].reserve = k === 'smg' ? 180 : k === 'shotgun' ? 36 : 72;
-        G.player.ammo[k].mag = k === 'smg' ? 30 : k === 'shotgun' ? 6 : 12;
+      for (const w of WEAPONS) {
+        if (w.id === 'fists') continue;
+        G.player.ammo[w.id].reserve = w.reserve;
+        G.player.ammo[w.id].mag = w.mag;
       }
       G.hud.showToast('Ammo refilled — stay dangerous');
     } };
   }
-  if (near(L.raceStart, 12) && G.player.vehicle && !G.missions.race) {
-    return { label: 'E — Start the Sunset Strip Race', act: () => G.missions.startRace() };
+  if (G.player.vehicle && !G.races.active) {
+    const routes = [
+      { pt: L.raceStart, idx: 0 }, { pt: L.race2, idx: 1 }, { pt: L.race3, idx: 2 },
+    ];
+    for (const r of routes) {
+      if (near(r.pt, 12)) {
+        const route = RACE_ROUTES[r.idx];
+        return { label: `E — Start the ${route.name} (${route.t}s · $${route.reward})`, act: () => G.races.start(r.idx) };
+      }
+    }
   }
   return null;
-}
-function MISSIONS_TITLE() {
-  const titles = ['FIRST WHEELS', 'THE DROP', 'HEAT ON THE STRIP', 'REPO RUN', 'DOCKSIDE DEAL', 'GOLDEN GETAWAY'];
-  return titles[G.missions.done] ?? 'FREE ROAM';
-}
-
-function useCrewAbility(which) {
-  if (cooldowns[which] > 0) return;
-  if (which === 'plates') {
-    if (G.police.wanted === 0) { G.hud.showToast('No heat to lose right now'); return; }
-    G.police.wanted = Math.max(0, G.police.wanted - 1);
-    G.hud.showToast('Tess swapped your plates — 1 star lost');
-    cooldowns.plates = COOLDOWN_MAX.plates;
-  } else if (which === 'fix') {
-    if (!G.player.vehicle) { G.hud.showToast('Quick Fix needs a car'); return; }
-    G.player.vehicle.health = 100;
-    G.hud.showToast('Bo patched the car up — good as new');
-    cooldowns.fix = COOLDOWN_MAX.fix;
-  } else if (which === 'eyes') {
-    G.eyesOutT = 20;
-    G.hud.showToast('Ivy is watching — all SPD units on the minimap');
-    cooldowns.eyes = COOLDOWN_MAX.eyes;
-  }
 }
 
 // --- input actions ---
 G.input.onKey = (code) => {
   G.audio.ensure();
+  if (G.garage.open) { G.garage.handleKey(code); return; }
   if (code === 'Escape') {
     if (G.mode === 'play') { G.mode = 'pause'; G.hud.showScreen('pause-menu'); }
     else if (G.mode === 'pause') { G.mode = 'play'; G.hud.hideScreens(); }
   }
   if (G.mode !== 'play') return;
   if (code === 'KeyM') { G.audio.setMuted(!G.audio.muted); G.hud.showToast(G.audio.muted ? 'Sound off' : 'Sound on'); }
-  if (code === 'KeyR' && G.input.down('ShiftLeft')) { /* shift+R unused */ }
   if (code === 'KeyN') {
     G.radioIdx = (G.radioIdx + 1) % RADIO.length;
     G.audio.setRadio(G.radioIdx);
     G.hud.showToast(`Radio: ${RADIO[G.radioIdx].name} — ${RADIO[G.radioIdx].genre}`);
   }
-  if (code === 'KeyZ') useCrewAbility('plates');
-  if (code === 'KeyX') useCrewAbility('fix');
-  if (code === 'KeyC') useCrewAbility('eyes');
+  if (code === 'KeyZ') G.crew.use('plates');
+  if (code === 'KeyX') G.crew.use('fix');
+  if (code === 'KeyC') G.crew.use('eyes');
   if (code === 'KeyE') {
     const it = nearestInteractable();
     if (it) { it.act(); return; }
@@ -262,9 +255,8 @@ function stepGame(dt) {
   G.police.update(dt, G);
   G.combat.update(dt, G);
   G.missions.update(dt, G);
-  // cooldowns
-  for (const k of Object.keys(cooldowns)) cooldowns[k] = Math.max(0, cooldowns[k] - dt);
-  if (G.eyesOutT > 0) G.eyesOutT -= dt;
+  G.races.update(dt, G);
+  G.crew.update(dt);
   // autosave
   saveT += dt;
   if (saveT > 60) { saveT = 0; saveGame(G); }
@@ -343,9 +335,10 @@ function animate() {
     G.camRig.yaw = G.player.vehicle.yaw - 0.36;
     G.camRig.pitch = 0.3;
   }
-  G.hud.setCrewCooldown(0, cooldowns.plates / COOLDOWN_MAX.plates);
-  G.hud.setCrewCooldown(1, cooldowns.fix / COOLDOWN_MAX.fix);
-  G.hud.setCrewCooldown(2, cooldowns.eyes / COOLDOWN_MAX.eyes);
+  G.wheel.update();
+  G.hud.setCrewCooldown(0, G.crew.frac('plates'));
+  G.hud.setCrewCooldown(1, G.crew.frac('fix'));
+  G.hud.setCrewCooldown(2, G.crew.frac('eyes'));
 
   // interaction prompt (suppressed while staging screenshots)
   if (G.shotMode) G.hud.showPrompt(null);
@@ -381,8 +374,11 @@ function animate() {
     x: +G.player.pos.x.toFixed(1), z: +G.player.pos.z.toFixed(1),
     speedKmh: Math.round(G.player.speedKmh), wanted: G.police.wanted,
     money: G.player.money, mission: G.missions.active ? G.missions.active.idx : -1,
+    missionsDone: G.missions.done, race: G.races.active ? G.races.active.idx : -1,
     inCar: !!G.player.vehicle, health: Math.round(G.player.health),
     cops: G.police.cops.length, enemies: G.combat.enemies.length,
+    wheelOpen: G.wheel.open, garageOpen: G.garage.open,
+    respect: G.player.respect, standing: G.respect.current().value,
   };
   input.endFrame();
 }

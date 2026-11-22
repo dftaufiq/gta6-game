@@ -16,18 +16,28 @@
   #mission-title { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; color: #ffd23d; }
   #mission-stage { display: inline-block; background: #ffd23d; color: #111; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 3px; margin: 4px 0; }
   #mission-timer { float: right; font-size: 15px; font-weight: 800; color: #fff; }
+  #mission-bar-wrap { height: 5px; background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden; margin: 2px 0 5px; }
+  #mission-bar { height: 100%; background: linear-gradient(90deg, #5fd35f, #ffd23d); width: 0%; transition: width 0.3s; }
   #mission-text { font-size: 14px; line-height: 1.35; }
   #mission-next { font-size: 12px; color: #9fd8a8; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 5px; }
   #mission-next b { color: #4fc3f7; }
   /* police panel */
-  #police-panel { position: absolute; top: 168px; left: 14px; width: 340px; padding: 8px 12px; border-left: 4px solid #5c9ded; display: none; }
+  #police-panel { position: absolute; top: 190px; left: 14px; width: 340px; padding: 8px 12px; border-left: 4px solid #5c9ded; display: none; }
   #police-panel h3 { font-size: 12px; letter-spacing: 1px; color: #8fb7ff; }
   #police-panel h3 span { float: right; color: #ff8a8a; }
-  #police-units div { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  #police-units div { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.08); }
   #police-units i { color: #8fb7ff; font-style: normal; }
   #police-units b { flex: 1; }
-  #police-units s { text-decoration: none; color: #ffb36b; }
+  #police-units s { text-decoration: none; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 3px; }
   #police-units span { color: #ccc; }
+  .pill-red { background: #d92020; color: #fff; }
+  .pill-orange { background: #e07a1a; color: #fff; }
+  .pill-blue { background: #2a6bff; color: #fff; }
+  .pill-yellow { background: #ffd23d; color: #111; }
+  .pill-gold { background: #b08a2a; color: #fff; }
+  .pill-purple { background: #7a3ad9; color: #fff; }
+  #police-chatter { font-size: 11px; color: #9fd8ff; font-style: italic; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 4px; margin-top: 4px; min-height: 15px; }
+  #police-more { font-size: 11px; color: #ffb36b; }
   /* top right */
   #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
   #clock { font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px #000; }
@@ -49,16 +59,21 @@
   .wkey { background: #ffd23d; color: #111; font-weight: 800; font-size: 11px; border-radius: 3px; padding: 1px 6px; }
   .wname { flex: 1; font-weight: 700; }
   .wammo { color: #9fd8a8; font-weight: 700; }
-  #crew-cards { position: absolute; top: 382px; right: 14px; display: flex; flex-direction: column; gap: 5px; }
+  #crew-cards { position: absolute; top: 408px; right: 14px; display: flex; flex-direction: column; gap: 5px; }
   .crew { position: relative; display: flex; gap: 8px; align-items: center; background: rgba(12,14,22,0.78); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 5px 10px; width: 210px; overflow: hidden; }
   .crew .cd { position: absolute; left: 0; bottom: 0; width: 100%; background: rgba(0,0,0,0.55); height: 0; }
   .ckey { background: #e05a8a; color: #fff; font-weight: 800; font-size: 12px; border-radius: 4px; padding: 3px 7px; z-index: 1; }
   .crew b { display: block; font-size: 12px; }
   .crew i { display: block; font-size: 11px; color: #4fc3f7; font-style: normal; }
   .crew s { display: block; font-size: 10px; color: #aaa; text-decoration: none; }
-  /* minimap + vitals */
+  /* minimap + vitals + standing */
   #map-wrap { position: absolute; left: 14px; bottom: 14px; width: 220px; }
-  #location { font-size: 15px; font-weight: 800; color: #ffd98a; text-shadow: 0 1px 4px #000; margin-bottom: 5px; font-style: italic; }
+  #location { font-size: 15px; font-weight: 800; color: #ffd98a; text-shadow: 0 1px 4px #000; margin-bottom: 2px; font-style: italic; }
+  #standing { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; margin-bottom: 5px; text-shadow: 0 1px 3px #000; }
+  #standing .bar { flex: 1; margin: 0; }
+  #standing-bar { background: #ffd23d; }
+  #standing-label { color: #ffd23d; }
+  #standing-num { color: #bbb; font-size: 10px; }
   #minimap { width: 220px; height: 220px; border-radius: 50%; border: 3px solid rgba(255,210,61,0.6); box-shadow: 0 4px 18px rgba(0,0,0,0.5); background: #222; }
   .vital { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; font-weight: 800; }
   .vital .bar { flex: 1; margin: 0; }
@@ -92,12 +107,44 @@
   #prompt.show { display: block; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 2px solid rgba(255,255,255,0.9); border-radius: 50%; display: none; box-shadow: 0 0 6px #000; }
   #damage-flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.55) 100%); opacity: 0; pointer-events: none; z-index: 6; }
+  /* weapon wheel */
+  #weapon-wheel { position: absolute; left: 50%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; z-index: 8; display: none; pointer-events: none; }
+  #weapon-wheel.show { display: block; }
+  #wheel-ring { position: absolute; inset: 40px; border-radius: 50%; border: 2px solid rgba(255,210,61,0.4); background: rgba(12,14,22,0.55); }
+  #wheel-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; }
+  #wheel-name { font-size: 16px; font-weight: 900; color: #ffd23d; }
+  #wheel-ammo { font-size: 13px; color: #9fd8a8; font-weight: 700; }
+  #wheel-hint { font-size: 11px; color: #aaa; margin-top: 4px; }
+  .wseg { position: absolute; left: 50%; top: 50%; width: 92px; margin: -26px 0 0 -46px; text-align: center; background: rgba(12,14,22,0.9); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 4px; pointer-events: auto; cursor: pointer; }
+  .wseg.sel { border-color: #ffd23d; background: rgba(60,48,8,0.95); box-shadow: 0 0 14px rgba(255,210,61,0.5); }
+  .wseg b { display: block; font-size: 18px; }
+  .wseg span { display: block; font-size: 11px; font-weight: 800; }
+  .wseg s { display: block; font-size: 11px; color: #9fd8a8; text-decoration: none; font-weight: 700; }
+  /* garage panel */
+  #garage-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; z-index: 8; display: none; background: rgba(12,14,22,0.94); border: 1px solid rgba(255,210,61,0.4); border-radius: 10px; padding: 16px 18px; pointer-events: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+  #garage-panel.show { display: block; }
+  #garage-title { font-size: 17px; font-weight: 900; color: #ffd23d; letter-spacing: 1px; }
+  #garage-sub { display: flex; justify-content: space-between; font-size: 13px; color: #ccc; margin: 4px 0 12px; }
+  #garage-money { color: #7be495; font-weight: 800; }
+  .grow { display: flex; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding: 9px 0; }
+  .ginfo { flex: 1; }
+  .ginfo b { font-size: 14px; }
+  .ginfo i { display: block; font-size: 12px; color: #aaa; font-style: normal; }
+  .ginfo s { display: block; font-size: 11px; color: #4fc3f7; text-decoration: none; font-weight: 700; }
+  .gbtn { cursor: pointer; background: #ffd23d; color: #111; border: none; font-size: 13px; font-weight: 800; padding: 8px 14px; border-radius: 6px; min-width: 92px; }
+  .gbtn:disabled { background: #555; color: #aaa; cursor: default; }
+  #garage-paints { display: flex; gap: 8px; margin: 8px 0 12px; }
+  .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); cursor: pointer; }
+  .swatch.sel { border-color: #ffd23d; box-shadow: 0 0 10px rgba(255,210,61,0.8); }
+  #garage-close { cursor: pointer; background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.35); font-size: 14px; font-weight: 800; padding: 8px 18px; border-radius: 6px; width: 100%; }
   /* screens */
   .screen { position: absolute; inset: 0; z-index: 10; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: linear-gradient(180deg, rgba(20,10,30,0.55), rgba(10,6,16,0.88)); }
   .screen.show { display: flex; }
   .screen h1 { font-size: 84px; font-weight: 900; letter-spacing: 4px; background: linear-gradient(180deg, #fff3b0, #ff9a3d); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.8)); }
   .screen h2 { font-size: 20px; font-weight: 400; color: #ffd98a; letter-spacing: 3px; margin: 2px 0 22px; }
-  .screen .tag { font-size: 15px; color: #ddd; max-width: 560px; line-height: 1.5; margin-bottom: 24px; }
+  .screen .tag { font-size: 15px; color: #ddd; max-width: 560px; line-height: 1.5; margin-bottom: 18px; }
+  .features { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 640px; margin-bottom: 20px; }
+  .features span { font-size: 12px; font-weight: 800; letter-spacing: 0.5px; background: rgba(255,210,61,0.14); border: 1px solid rgba(255,210,61,0.4); color: #ffd98a; border-radius: 20px; padding: 4px 12px; }
   .btn { pointer-events: auto; cursor: pointer; background: #ffd23d; color: #111; border: none; font-size: 17px; font-weight: 800; padding: 12px 34px; border-radius: 8px; margin: 5px; letter-spacing: 1px; }
   .btn:hover { background: #ffe066; }
   .btn.ghost { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
@@ -119,12 +166,15 @@
   <div id="mission-panel" class="panel">
     <div id="mission-title">FREE ROAM</div>
     <span id="mission-stage">—</span><span id="mission-timer"></span>
+    <div id="mission-bar-wrap"><div id="mission-bar"></div></div>
     <div id="mission-text">Go to Mama Luz (M) to start the next job</div>
     <div id="mission-next"><b>NEXT</b> —</div>
   </div>
   <div id="police-panel" class="panel">
     <h3>▲ SPD RESPONSE <span id="police-count"></span></h3>
     <div id="police-units"></div>
+    <div id="police-chatter"></div>
+    <div id="police-more"></div>
   </div>
   <div id="top-right">
     <div id="clock">16:40</div>
@@ -137,6 +187,7 @@
   <div id="crew-cards"></div>
   <div id="map-wrap">
     <div id="location">Downtown Solena</div>
+    <div id="standing"><span id="standing-label">NEUTRAL · 50</span><div class="bar"><div id="standing-bar" style="width:50%"></div></div><span id="standing-num">STANDING</span></div>
     <canvas id="minimap" width="220" height="220"></canvas>
     <div class="vital">HEALTH <div class="bar"><div id="health-bar" style="width:100%"></div></div><span id="health-num">100</span></div>
     <div class="vital">ARMOUR <div class="bar"><div id="armour-bar" style="width:0%"></div></div><span id="armour-num">0</span></div>
@@ -156,19 +207,35 @@
 </div>
 <div id="damage-flash"></div>
 
+<div id="weapon-wheel">
+  <div id="wheel-ring"></div>
+  <div id="wheel-segs"></div>
+  <div id="wheel-center"><div id="wheel-name">FISTS</div><div id="wheel-ammo">∞</div><div id="wheel-hint">hold Q · point · release</div></div>
+</div>
+
+<div id="garage-panel">
+  <div id="garage-title">BO’S GARAGE</div>
+  <div id="garage-sub"><span id="garage-car">NO CAR</span><span id="garage-money">$0</span></div>
+  <div id="garage-rows"></div>
+  <div style="font-size:12px;color:#aaa;margin-top:8px">PAINT COLOUR (for respray)</div>
+  <div id="garage-paints"></div>
+  <button id="garage-close">CLOSE [ESC]</button>
+</div>
+
 <div id="start-screen" class="screen show">
   <h1>SOLENA BAY</h1>
   <h2>OPEN-WORLD CRIME AT GOLDEN HOUR</h2>
-  <p class="tag">Kai Reyes, small-time driver. Mama Luz, fixer. One sun-soaked city, six story jobs, five stars of SPD heat — and a boat waiting at Pier 9.</p>
+  <p class="tag">Kai Reyes, small-time driver. Mama Luz, fixer. One sun-soaked city, ten story jobs, five stars of SPD heat — and a boat waiting at Pier 9.</p>
+  <div class="features"><span>10 STORY MISSIONS</span><span>3 STREET RACES</span><span>CREW ABILITIES</span><span>GARAGE UPGRADES</span><span>WEAPON WHEEL</span><span>5-STAR SPD + CONDOR-1</span></div>
   <div>
     <button class="btn" id="new-game-btn">▶ NEW GAME</button>
     <button class="btn ghost" id="continue-btn" style="display:none">↻ CONTINUE</button>
   </div>
   <div class="controls">
     <span><b>W A S D</b> move / drive</span><span><b>MOUSE</b> look &amp; aim · <b>CLICK</b> shoot</span>
-    <span><b>E</b> enter / exit car · use</span><span><b>1–4 / WHEEL</b> weapons · <b>R</b> reload</span>
+    <span><b>E</b> enter / exit car · use</span><span><b>Q HOLD</b> weapon wheel · <b>1–5</b> weapons · <b>R</b> reload</span>
     <span><b>SHIFT</b> sprint · <b>SPACE</b> jump / handbrake</span><span><b>Z X C</b> crew powers · <b>N</b> radio · <b>M</b> mute</span>
-    <span><b>ESC</b> pause · save</span><span><b>GOAL</b> 6 missions · races · shops · respect ranks</span>
+    <span><b>ESC</b> pause · save</span><span><b>GOAL</b> 10 missions · 3 races · garage · respect ranks</span>
   </div>
   <p class="foot">An original game — Solena Bay, its people and its story are invented for this bounty. No network needed; everything runs from these files.</p>
 </div>

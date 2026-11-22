@@ -10,7 +10,7 @@ export const CFG = {
   RESPRAY_COST: 200, AMMO_COST: 100,
   // Clock: one game hour per 90 real seconds, starts 16:40 golden hour
   CLOCK_START_MIN: 16 * 60 + 40, MIN_PER_SEC: 60 / 90,
-  SAVE_KEY: 'solena-bay-save-v1',
+  SAVE_KEY: 'solena-bay-save-v2',
 };
 
 export const DISTRICTS = [
@@ -32,13 +32,14 @@ export const CHARACTERS = {
   IVY: { name: 'Ivy', role: 'Lookout', color: '#ba68c8', skin: '#e8b88a', hair: '#c93a2e' },
   RICO: { name: 'Rico Vane', role: 'Rival', color: '#ef5350', skin: '#c98a5a', hair: '#1a1a1a' },
   SPD: { name: 'SPD Dispatch', role: 'Solena PD', color: '#5c9ded', skin: '#d9a077', hair: '#3a3a3a' },
-};
+];
 
 export const WEAPONS = [
-  { id: 'fists', name: 'FISTS', dmg: 12, range: 2.4, rate: 2.2, mag: Infinity, auto: false, icon: '✊' },
-  { id: 'pistol', name: 'P9 PISTOL', dmg: 26, range: 70, rate: 3.5, mag: 12, auto: false, icon: '🔫' },
-  { id: 'smg', name: 'VK SMG', dmg: 13, range: 55, rate: 9, auto: true, mag: 30, icon: '🔫' },
-  { id: 'shotgun', name: 'M870 BREACH', dmg: 9, pellets: 6, range: 30, rate: 1.3, auto: false, mag: 6, icon: '🔫' },
+  { id: 'fists', name: 'FISTS', dmg: 12, range: 2.4, rate: 2.2, mag: Infinity, reserve: Infinity, auto: false, icon: '✊' },
+  { id: 'pistol', name: 'P9 PISTOL', dmg: 26, range: 70, rate: 3.5, mag: 12, reserve: 72, auto: false, icon: '🔫' },
+  { id: 'smg', name: 'VK SMG', dmg: 13, range: 55, rate: 9, auto: true, mag: 30, reserve: 180, icon: '🔫' },
+  { id: 'shotgun', name: 'M870 BREACH', dmg: 9, pellets: 6, range: 30, rate: 1.3, auto: false, mag: 6, reserve: 36, icon: '🔫' },
+  { id: 'rifle', name: 'VK-9 RIFLE', dmg: 45, range: 120, rate: 2.2, auto: false, mag: 20, reserve: 60, icon: '🔫' },
 ];
 
 export const VEHICLE_TYPES = {
@@ -48,6 +49,7 @@ export const VEHICLE_TYPES = {
   taxi: { name: 'Solena Cab', top: 30, accel: 15, color: 0xf2c230 },
   sports: { name: 'Rukan Pelo GT', top: 44, accel: 22, color: 0xff7a1a },
   police: { name: 'SPD Interceptor', top: 37, accel: 20, color: 0x1c2733 },
+  swat: { name: 'SPD SWAT Van', top: 30, accel: 14, color: 0x1c2733 },
   van: { name: 'Dock Van', top: 24, accel: 11, color: 0x8a8f98 },
 };
 

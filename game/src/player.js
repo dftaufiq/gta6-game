@@ -56,6 +56,7 @@ export class Player {
       pistol: { mag: 12, reserve: 48 },
       smg: { mag: 30, reserve: 120 },
       shotgun: { mag: 6, reserve: 24 },
+      rifle: { mag: 20, reserve: 40 },
     };
     this.vehicle = null;
     this.walkPhase = 0;
@@ -143,6 +144,7 @@ export class Player {
     this.vehicle = v;
     v.isPlayer = true;
     v.driver = 'player';
+    G.vehicles.setHeadlights(v, true);
     G.camRig.snapBehind(v.yaw);
     G.audio?.engineStart();
     if (v.stolen !== true && !v.owned) {
@@ -159,6 +161,7 @@ export class Player {
     v.isPlayer = false;
     v.driver = null;
     v.speed = 0;
+    G.vehicles.setHeadlights(v, false);
     // step out to the side of the car
     const sx = Math.cos(v.yaw), sz = -Math.sin(v.yaw);
     this.pos.set(v.mesh.position.x + sx * 2.6, 0, v.mesh.position.z + sz * 2.6);

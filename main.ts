@@ -1,4 +1,4 @@
-// SOLENA BAY — a make.fun gta6-01 entry (Node 22, standard library only).
+// SOLENA BAY — a make.fun gta6-01 entry, round 2 (Node 22, stdlib only).
 // The game is this directory's game/ folder: plain static files a desktop
 // browser loads offline (game/index.html + ES modules + vendored three.js,
 // no network request). This program hands it in: it copies game/ and
@@ -6,9 +6,11 @@
 // /output/dossier.json, the summary the judge reads, with the vendored
 // make.fun library. Solena Bay is a complete open-world crime game — a
 // sun-soaked coastal city at golden hour, on foot and by car, with traffic
-// and pedestrians, a 5-star wanted system with SPD pursuit, roadblocks and
-// a helicopter, 6 story missions, 4-weapon combat, shops, a street race,
-// crew powers, radio, saves and a minimap HUD.
+// and pedestrians, a 5-star wanted system with SPD pursuit, roadblocks with
+// spike strips, the SWAT van and the CONDOR-1 helicopter, 10 story
+// missions, 5-weapon combat with a radial weapon wheel, 3 checkpoint
+// street races, garage upgrades (engine, armour, respray), crew abilities,
+// respect ranks + district standing, shops, radio, saves and a minimap HUD.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
