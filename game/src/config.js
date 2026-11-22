@@ -32,7 +32,7 @@ export const CHARACTERS = {
   IVY: { name: 'Ivy', role: 'Lookout', color: '#ba68c8', skin: '#e8b88a', hair: '#c93a2e' },
   RICO: { name: 'Rico Vane', role: 'Rival', color: '#ef5350', skin: '#c98a5a', hair: '#1a1a1a' },
   SPD: { name: 'SPD Dispatch', role: 'Solena PD', color: '#5c9ded', skin: '#d9a077', hair: '#3a3a3a' },
-];
+};
 
 export const WEAPONS = [
   { id: 'fists', name: 'FISTS', dmg: 12, range: 2.4, rate: 2.2, mag: Infinity, reserve: Infinity, auto: false, icon: '✊' },

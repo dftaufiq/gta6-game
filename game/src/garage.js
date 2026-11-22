@@ -130,9 +130,9 @@ export class Garage {
     this.el.classList.remove('show');
   }
 
-  // Keys 1–3 buy while the panel is open; Esc closes.
+  // Keys 1–3 buy while the panel is open; Esc or E closes.
   handleKey(code) {
-    if (code === 'Escape') { this.close(); return true; }
+    if (code === 'Escape' || code === 'KeyE') { this.close(); return true; }
     const u = UPGRADES.find((x) => code === 'Digit' + x.key);
     if (u) { this.buy(u.id); return true; }
     return false;
