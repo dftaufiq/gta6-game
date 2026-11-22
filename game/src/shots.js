@@ -28,10 +28,12 @@ export function stageShot(G, shot) {
     G.missions.startMission(0);
     G.hud.showDialogue('LUZ', 'Kai, baby. A pretty Comet is parked on Strand Row. Bring it to me — and try not to scratch it.', 30);
     G.camRig.yaw = Math.PI * 0.98; G.camRig.pitch = 0.34;
-    // a few pedestrians right around the player + traffic up the street
-    for (const [x, z] of [[24, 52], [36, 68], [20, 72], [40, 50], [30, 80]]) G.peds.spawn(x, z);
-    const t1 = G.vehicles.spawn('sedan', 31, 20, Math.PI, { traffic: true }); t1.speed = 10;
-    const t2 = G.vehicles.spawn('taxi', 31, -45, 0, { traffic: true }); t2.speed = 10;
+    G.camRig.distLock = 11; // pull back so more street + traffic is in frame
+    // pedestrians around the player + a couple further up the street
+    for (const [x, z] of [[24, 52], [36, 68], [20, 72], [40, 50], [30, 80], [26, 30], [36, 18]]) G.peds.spawn(x, z);
+    // traffic in the visible corridor ahead (north of the player)
+    const t1 = G.vehicles.spawn('sedan', 31, 15, Math.PI, { traffic: true }); t1.speed = 10;
+    const t2 = G.vehicles.spawn('taxi', 31, -30, 0, { traffic: true }); t2.speed = 10;
     const t3 = G.vehicles.spawn('suv', 31, 130, Math.PI, { traffic: true }); t3.speed = 9;
   }
 
@@ -51,6 +53,7 @@ export function stageShot(G, shot) {
     G.player.money = 86450;
     G.player.respect = 2310;
     G.respect.standing['Downtown Solena'] = 72;
+    G.respect.standing['Palm Heights'] = 72; // the chase runs north into Palm Heights
     G.missions.done = 5;
     G.missions.startMission(5);
     // wanted 5 (mission sets 4, add one more): SWAT van + CONDOR-1 join
